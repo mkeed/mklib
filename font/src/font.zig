@@ -23,7 +23,7 @@ const hhea = @import("tables/hhea.zig");
 //const hmtx = @import("tables/hmtx.zig");
 const maxp = @import("tables/maxp.zig");
 const name = @import("tables/name.zig");
-//const os2 = @import("tables/os2.zig");
+const os2 = @import("tables/os2.zig");
 //const post = @import("tables/post.zig");
 
 const Table = struct {
@@ -107,6 +107,9 @@ pub fn parseFont(data: []const u8, alloc: std.mem.Allocator) !Font {
 
     const NAME = try name.parse(tbl.get("name") orelse return error.Missing_name, alloc);
     defer NAME.deinit();
+
+    const OS2 = try os2.parse(tbl.get("OS/2") orelse return error.Missing_Os2, alloc);
+    std.log.info("OS2:{}", .{OS2});
     //const HMTX = try hmtx.parse(tbl.get("hmtx") orelse return error.Missing_hmtx, alloc, HHEA.numberOfHMetrics);
     return Font{};
 }

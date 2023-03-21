@@ -1,10 +1,44 @@
 const std = @import("std");
 
+const NameId = enum(u16) {
+    CopyRight = 0,
+    Family = 1,
+    SubFamily = 2,
+    UnqiueIdentifier = 3,
+    FullFontName = 4,
+    Version = 5,
+    PostScript = 6,
+    TradeMark = 7,
+    Manufacturer = 8,
+    Designer = 9,
+    Description = 10,
+    URLVendor = 11,
+    URLDesigner = 12,
+    Licence = 13,
+    LicenceInfo = 14,
+    TypographicFamily = 16,
+    TypographicSubFamily = 17,
+    CompatibleFull = 18,
+    SampleText = 19,
+    PostscriptCID = 20,
+    WWSFamily = 21,
+    WWSSubFamily = 22,
+    LightBackgroundPalette = 23,
+    DarkBackgroundPalette = 24,
+    VariationsPostScript = 25,
+};
+
+const PlatformId = enum(u16) {
+    Unicode = 0,
+    Macintosh = 1,
+    Windows = 3,
+};
+
 pub const Record = struct {
-    platform: u16,
+    platform: PlatformId,
     encoding: u16,
     language: u16,
-    name: u16,
+    name: NameId,
     nameStr: std.ArrayList(u8),
     pub fn init(
         alloc: std.mem.Allocator,
@@ -32,10 +66,10 @@ pub const Record = struct {
             }
         }
         return Record{
-            .platform = platform,
+            .platform = std.meta.intToEnum(PlatformId, platform) catch return error.InvalidPlatformId,
             .encoding = encoding,
             .language = language,
-            .name = name,
+            .name = std.meta.intToEnum(NameId, name) catch return error.InvalidNameId,
             .nameStr = nameStr,
         };
     }
@@ -84,13 +118,7 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator) !NAME {
         const str = storage[offset..][0..length];
         var record = try Record.init(alloc, str, platformId, encodingId, languageId, nameId);
         errdefer record.deinit();
-        std.log.info("platform:{} encoding:{} language:{} name:{}, str[{s}]", .{
-            platformId,
-            encodingId,
-            languageId,
-            nameId,
-            record.nameStr.items,
-        });
+
         try name.records.append(record);
     }
     return name;
