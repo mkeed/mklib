@@ -24,16 +24,50 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator) !CMAP {
 
         const subTable = data[offset..];
         const format = std.mem.readIntSliceBig(u16, subTable[0..]);
+        const length = std.mem.readIntSliceBig(u16, subTable[2..]);
         std.log.info("Format:{}", .{format});
         switch (format) {
-            4 => {},
+            4 => {
+                _ = try parseFormat4(data[offset..][0..length]);
+            },
             else => return error.NotImplemented,
         }
     }
     return CMAP{};
 }
 
-fn parseformat4(data: []const u8) !Format4 {}
+const Format4 = struct {};
+
+fn parseFormat4(data: []const u8) !Format4 {
+    if (data.len < 14) return error.FormatTooShort;
+    const language = std.mem.readIntSliceBig(u16, data[4..]);
+    _ = language;
+    const segCountX2 = std.mem.readIntSliceBig(u16, data[6..]);
+    const searchRange = std.mem.readIntSliceBig(u16, data[8..]);
+    _ = searchRange;
+    const entrySelector = std.mem.readIntSliceBig(u16, data[10..]);
+    _ = entrySelector;
+    const rangeShift = std.mem.readIntSliceBig(u16, data[12..]);
+    _ = rangeShift;
+    if (data.len < 16 + (4 * segCountX2)) return error.FormatTooShort;
+    const endCodes = data[14..][0..segCountX2];
+    const startCodes = data[14 + 2 + segCountX2 ..][0..segCountX2];
+    const idDelta = data[14 + 2 + (2 * segCountX2) ..][0..segCountX2];
+    const idRangeOffsets = data[14 + 2 + (3 * segCountX2) ..][0..segCountX2];
+    const glyphIdArray = data[14 + 2 + (3 * segCountX2) ..];
+    _ = glyphIdArray;
+
+    var count: usize = 0;
+    while (count < segCountX2) : (count += 2) {
+        const end = std.mem.readIntSliceBig(u16, endCodes[count..]);
+        const start = std.mem.readIntSliceBig(u16, startCodes[count..]);
+        const delta = std.mem.readIntSliceBig(i16, idDelta[count..]);
+        const rangeOffset = std.mem.readIntSliceBig(u16, idRangeOffsets[count..]);
+        std.log.info("start:{x}[{}] end:{x}[{}] delta:{x}[{}] rangeOffset:{x}[{}]", .{ start, start, end, end, delta, delta, rangeOffset, rangeOffset });
+    }
+
+    return Format4{};
+}
 
 const PlatformID = enum(u16) {
     Unicode = 0,

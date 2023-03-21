@@ -41,6 +41,7 @@ const Table = struct {
             if (offset + length > self.data.len) return error.InvalidTagLength;
             const data = self.data[offset .. offset + length];
             const calcCheckSum = calculateCheckSum(data, isHead);
+            std.log.info("tag:[{s}]", .{tag});
             if (checkSum != calcCheckSum) {
                 std.log.err("tag:[{s}] calc[{x}] != checksum[{x}]", .{
                     tag,
