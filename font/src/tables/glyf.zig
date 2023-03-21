@@ -1,5 +1,45 @@
 const std = @import("std");
 
+const Point = struct { x: i16, y: i16 };
+const StraightLine = struct {
+    start: Point,
+    end: Point,
+};
+
+const CurveLine = struct {
+    start: Point,
+    control1: Point,
+    Control2: Point,
+    end: Point,
+};
+
+const Line = union(enum) {
+    straight: StraightLine,
+    curve: CurvedLine,
+};
+const Contour = struct {
+    points: std.ArrayList(Line),
+    pub fn init(alloc: std.mem.Allocator) Contour {
+        return Contour{
+            .points = std.ArrayList(Line).init(alloc),
+        };
+    }
+    pub fn deinit(self: Contour) void {
+        self.points.deinit();
+    }
+};
+
+const Glyph = struct {
+    alloc: std.mem.Allocator,
+    contours: std.ArrayList(Contour),
+    pub fn init(alloc: std.mem.Allocator) Glyph {
+        return Glyph{
+            .alloc = alloc,
+            .contours = std.ArrayList(Contour).init(alloc),
+        };
+    }
+};
+
 const GLYF = struct {};
 
 pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF {
