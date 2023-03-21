@@ -25,6 +25,7 @@ const maxp = @import("tables/maxp.zig");
 const name = @import("tables/name.zig");
 const os2 = @import("tables/os2.zig");
 const post = @import("tables/post.zig");
+const glyf = @import("tables/glyf.zig");
 
 const Table = struct {
     data: []const u8,
@@ -114,6 +115,9 @@ pub fn parseFont(data: []const u8, alloc: std.mem.Allocator) !Font {
 
     const CMAP = try cmap.parse(tbl.get("cmap") orelse return error.Missing_cmap, alloc);
     std.log.info("CMAP:{}", .{CMAP});
+
+    const GLYF = try glyf.parse(tbl.get("glyf") orelse return error.Missing_glyf, alloc, MAXP.numGlyphs);
+    std.log.info("GLYF:{}", .{GLYF});
 
     //const POST = try post.parse(tbl.get("post") orelse return error.Missing_post, alloc);
     //_ = POST;
