@@ -17,7 +17,6 @@ const POSTA = struct {
 const POST = struct {};
 
 pub fn parse(data: []const u8, alloc: std.mem.Allocator) !POST {
-    _ = alloc;
     var fbs = std.io.fixedBufferStream(data);
     const reader = fbs.reader();
 
@@ -45,20 +44,37 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator) !POST {
         minMemType1,
         maxMemType1,
     });
-
+    var stringsList = std.ArrayList(std.ArrayList(u8)).init(alloc);
+    defer {
+        for (stringsList.items) |item| {
+            item.deinit();
+        }
+        stringsList.deinit();
+    }
     if (versionMajor > 1) {
         const numGlyphs = try reader.readIntBig(u16);
         const stringStart = fbs.pos + numGlyphs * 2;
         const strings = data[stringStart..];
+
+        var idx: usize = 0;
+        while (idx < strings.len) {
+            const len = strings[idx];
+            idx += 1;
+            const subString = strings[idx..][0..len];
+            idx += len;
+
+            var subStringVal = std.ArrayList(u8).init(alloc);
+            errdefer subStringVal.deinit();
+            try subStringVal.appendSlice(subString);
+            try stringsList.append(subStringVal);
+        }
 
         for (0..numGlyphs) |_| {
             const index = try reader.readIntBig(u16);
             std.log.info("GlyphIndex[{}", .{index});
             if (index >= 258) {
                 const subIndex = index - 258;
-                const len = strings[subIndex];
-
-                const subString = strings[subIndex + 1 ..][0..len];
+                const subString = stringsList.items[subIndex].items;
 
                 std.log.info("sub:[{s}]", .{subString});
             }

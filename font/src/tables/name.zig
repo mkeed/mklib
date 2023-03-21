@@ -38,7 +38,7 @@ pub const Record = struct {
     platform: PlatformId,
     encoding: u16,
     language: u16,
-    name: NameId,
+    name: u16,
     nameStr: std.ArrayList(u8),
     pub fn init(
         alloc: std.mem.Allocator,
@@ -69,7 +69,7 @@ pub const Record = struct {
             .platform = std.meta.intToEnum(PlatformId, platform) catch return error.InvalidPlatformId,
             .encoding = encoding,
             .language = language,
-            .name = std.meta.intToEnum(NameId, name) catch return error.InvalidNameId,
+            .name = name,
             .nameStr = nameStr,
         };
     }

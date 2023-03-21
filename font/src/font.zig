@@ -17,7 +17,7 @@ pub const Fixed = struct {
     }
 };
 
-//const cmap = @import("tables/cmap.zig");
+const cmap = @import("tables/cmap.zig");
 const head = @import("tables/head.zig");
 const hhea = @import("tables/hhea.zig");
 //const hmtx = @import("tables/hmtx.zig");
@@ -111,8 +111,11 @@ pub fn parseFont(data: []const u8, alloc: std.mem.Allocator) !Font {
     const OS2 = try os2.parse(tbl.get("OS/2") orelse return error.Missing_Os2, alloc);
     std.log.info("OS2:{}", .{OS2});
 
-    const POST = try post.parse(tbl.get("post") orelse return error.Missing_post, alloc);
-    _ = POST;
+    const CMAP = try cmap.parse(tbl.get("cmap") orelse return error.Missing_cmap, alloc);
+    std.log.info("CMAP:{}", .{CMAP});
+
+    //const POST = try post.parse(tbl.get("post") orelse return error.Missing_post, alloc);
+    //_ = POST;
     //const HMTX = try hmtx.parse(tbl.get("hmtx") orelse return error.Missing_hmtx, alloc, HHEA.numberOfHMetrics);
     return Font{};
 }
