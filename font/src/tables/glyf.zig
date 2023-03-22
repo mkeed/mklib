@@ -45,7 +45,7 @@ const GLYF = struct {};
 pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF {
     var fbs = std.io.fixedBufferStream(data);
     const reader = fbs.reader();
-    std.log.info("data:[{}]", .{std.fmt.fmtSliceHexUpper(data[0..100])});
+    //std.log.info("data:[{}]enddata", .{std.fmt.fmtSliceHexUpper(data[)});
     var xPointBuffer = std.ArrayList(i16).init(alloc);
     defer xPointBuffer.deinit();
     var yPointBuffer = std.ArrayList(i16).init(alloc);
@@ -53,6 +53,7 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
     var isCurveBuffer = std.ArrayList(bool).init(alloc);
     defer isCurveBuffer.deinit();
     for (0..numGlyfs) |glyfIdx| {
+        std.log.info("{}------------------------------------------------------------", .{glyfIdx});
         xPointBuffer.clearRetainingCapacity();
         yPointBuffer.clearRetainingCapacity();
         const numberOfContours = try reader.readIntBig(i16);
@@ -67,7 +68,7 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
         for (0..num) |_| {
             const endPoint = try reader.readIntBig(u16);
             last = endPoint;
-            //std.log.info("point:{}", .{endPoint});
+            std.log.info("point:{}", .{endPoint});
         }
         const instructionLength = try reader.readIntBig(u16);
         std.log.info("instructionLength:{}", .{instructionLength});
@@ -78,38 +79,46 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
         }
         var flags = std.ArrayList(Flag).init(alloc);
         defer flags.deinit();
-        for (0..(last + 1)) |_| {
+        var flagcount: usize = 0;
+        while (flagcount < (last + 1)) : (flagcount += 1) {
             const flagVal = try reader.readIntBig(u8);
             const flag = @ptrCast(*const Flag, &flagVal);
+            std.log.info("flag:{}", .{flag.*});
             try flags.append(flag.*);
+            if (flag.repeat == 1) {
+                const times = try reader.readIntBig(u8);
+                flagcount += times;
+                try flags.appendNTimes(flag.*, times);
+            }
         }
         var curPoint: i16 = 0;
-        //std.log.info("vals:{}", .{std.fmt.fmtSliceHexUpper(data[fbs.pos .. fbs.pos + 20])});
+        std.log.info("vals:{}", .{std.fmt.fmtSliceHexUpper(data[fbs.pos .. fbs.pos + 20])});
         for (flags.items) |f| {
             //std.log.info("flags:{}", .{f});
             const val = if (f.xShort == 1)
                 @intCast(i16, try reader.readIntBig(u8)) * if (f.xSame == 1) @as(i16, 1) else @as(i16, -1)
             else if (f.xSame == 1) @as(i16, 0) else try reader.readIntBig(i16);
-
+            std.log.info("pval:{} x:{}", .{ val, curPoint });
             curPoint += val;
             try xPointBuffer.append(curPoint);
             std.log.info("val:{} x:{}", .{ val, curPoint });
         }
         curPoint = 0;
-        //std.log.info("vals:{}", .{std.fmt.fmtSliceHexUpper(data[fbs.pos .. fbs.pos + 20])});
+        std.log.info("vals:{}", .{std.fmt.fmtSliceHexUpper(data[fbs.pos .. fbs.pos + 20])});
         for (flags.items) |f| {
             //std.log.info("flags:{}", .{f});
             const val = if (f.yShort == 1)
                 @intCast(i16, try reader.readIntBig(u8)) * if (f.ySame == 1) @as(i16, 1) else @as(i16, -1)
             else if (f.ySame == 1) @as(i16, 0) else try reader.readIntBig(i16);
+            std.log.info("pval:{} x:{}", .{ val, curPoint });
             curPoint += val;
             try yPointBuffer.append(curPoint);
-            //std.log.info("val:{} y:{}", .{ val, curPoint });
+            std.log.info("val:{} y:{}", .{ val, curPoint });
         }
         for (xPointBuffer.items, yPointBuffer.items) |x, y| {
             std.log.info("point:[{}:{}]", .{ x, y });
         }
-        if (glyfIdx > 2) break;
+        //if (glyfIdx > 4) break;
     }
 
     return GLYF{};
