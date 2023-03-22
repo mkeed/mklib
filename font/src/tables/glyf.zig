@@ -53,16 +53,28 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
     var isCurveBuffer = std.ArrayList(bool).init(alloc);
     defer isCurveBuffer.deinit();
     for (0..numGlyfs) |glyfIdx| {
-        std.log.info("{}------------------------------------------------------------", .{glyfIdx});
+        std.log.info("{}[{}:{x}]------------------------------------------------------------", .{ glyfIdx, fbs.pos, fbs.pos });
         xPointBuffer.clearRetainingCapacity();
         yPointBuffer.clearRetainingCapacity();
         const numberOfContours = try reader.readIntBig(i16);
-        if (numberOfContours < 0) return error.CompositeNotImplemented;
-        const num = @intCast(u16, numberOfContours);
+
         const xMin = try reader.readIntBig(i16);
         const yMin = try reader.readIntBig(i16);
         const xMax = try reader.readIntBig(i16);
         const yMax = try reader.readIntBig(i16);
+
+        if (numberOfContours < 0) {
+            std.log.err("glyf:{} data:[{}]", .{ glyfIdx, std.fmt.fmtSliceHexUpper(data[fbs.pos .. fbs.pos + 20]) });
+            var more = true;
+            while (more) {
+                const flags = try reader.readIntBig(i16);
+                more = (flags & 0x0020) != 0;
+                const arg1 = if (flags & 0x0001) try reader.readIntBig(i16);
+                const arg2 = if (flags & 0x0001) try reader.readIntBig(i16);
+            }
+            return error.CompositeNotImplemented;
+        }
+        const num = @intCast(u16, numberOfContours);
         var last: usize = 0;
         std.log.info("Contours:{} [{}:{} => {}:{}] ", .{ numberOfContours, xMin, yMin, xMax, yMax });
         for (0..num) |_| {
