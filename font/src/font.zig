@@ -117,6 +117,7 @@ pub fn parseFont(data: []const u8, alloc: std.mem.Allocator) !Font {
     std.log.info("CMAP:{}", .{CMAP});
 
     const GLYF = try glyf.parse(tbl.get("glyf") orelse return error.Missing_glyf, alloc, MAXP.numGlyphs);
+    defer GLYF.deinit();
     std.log.info("GLYF:{}", .{GLYF});
 
     //const POST = try post.parse(tbl.get("post") orelse return error.Missing_post, alloc);
