@@ -61,8 +61,12 @@ pub fn quadratic(start: Point, control: Point, end: Point, points: []Point) void
 pub fn cubic(start: Point, control1: Point, control2: Point, end: Point, points: []Point) void {
     for (points, 0..) |*p, idx| {
         const p1 = lerp(start, control1, @intCast(isize, points.len), @intCast(isize, idx));
-        const p2 = lerp(control2, end, @intCast(isize, points.len), @intCast(isize, idx));
-        p.* = lerp(p1, p2, @intCast(isize, points.len), @intCast(isize, idx));
+        const p2 = lerp(control1, control2, @intCast(isize, points.len), @intCast(isize, idx));
+        const p3 = lerp(control2, end, @intCast(isize, points.len), @intCast(isize, idx));
+
+        const p4 = lerp(p1, p2, @intCast(isize, points.len), @intCast(isize, idx));
+        const p5 = lerp(p2, p3, @intCast(isize, points.len), @intCast(isize, idx));
+        p.* = lerp(p4, p5, @intCast(isize, points.len), @intCast(isize, idx));
     }
 }
 

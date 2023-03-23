@@ -125,3 +125,58 @@ pub fn parseFont(data: []const u8, alloc: std.mem.Allocator) !Font {
     //const HMTX = try hmtx.parse(tbl.get("hmtx") orelse return error.Missing_hmtx, alloc, HHEA.numberOfHMetrics);
     return Font{};
 }
+
+pub fn listFonts(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
+    var fonts = std.ArrayList(std.ArrayList(u8)).init(alloc);
+    errdefer {
+        for (fonts.items) |item| {
+            item.deinit();
+        }
+        fonts.deinit();
+    }
+    const defaultFolder = "/usr/share/fonts";
+    var dir = try std.fs.cwd().openIterableDir(defaultFolder, .{});
+    defer dir.close();
+    var dirIter = dir.iterate();
+    while (try dirIter.next()) |item| {
+        switch (item.kind) {
+            .Directory => {
+                var fontDir = try dir.dir.openIterableDir(item.name, .{});
+                defer fontDir.close();
+                var fontIter = fontDir.iterate();
+                while (try fontIter.next()) |fontFile| {
+                    switch (fontFile.kind) {
+                        .File => {
+                            var split = std.mem.splitBackwards(u8, fontFile.name, ".");
+                            if (split.next()) |n| {
+                                if (std.mem.eql(u8, "ttf", n) or std.mem.eql(u8, "otf", n)) {
+                                    var filename = std.ArrayList(u8).init(alloc);
+                                    errdefer filename.deinit();
+                                    try filename.appendSlice(fontFile.name);
+                                    try fonts.append(filename);
+                                }
+                            }
+                        },
+                        else => continue,
+                    }
+                }
+            },
+            else => continue,
+        }
+    }
+    return fonts;
+}
+
+test {
+    const alloc = std.testing.allocator;
+    var fonts = try listFonts(alloc);
+    defer {
+        for (fonts.items) |f| {
+            f.deinit();
+        }
+        fonts.deinit();
+    }
+    for (fonts.items) |f| {
+        std.log.err("{s}", .{f.items});
+    }
+}

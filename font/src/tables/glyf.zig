@@ -60,14 +60,14 @@ const RegularGlyph = struct {
         }
         self.contours.deinit();
     }
-    pub fn addSegment(self: RegularGyph, line: Line) !void {
+    pub fn addSegment(self: RegularGlyph, line: Line) !void {
         if (self.contours.items.len == 0) {
             try self.newContour();
         }
         try self.contours.items[self.contours.items.len - 1].points.append(line);
     }
     pub fn newContour(self: RegularGlyph) !void {
-        var c = Contour.init(alloc);
+        var c = Contour.init(self.alloc);
         errdefer c.deinit();
         try self.contours.append(c);
     }
@@ -249,18 +249,14 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
             try yPointBuffer.append(curPoint);
         }
         if (yPointBuffer.items.len != xPointBuffer.items.len) return error.InvalidNumberOfPoints;
-        var lastX: u16 = xPointBuffer.items[0];
-        var lastY: u16 = yPointBuffer.items[0];
-        var lastCurve: bool = true;
+        //var lastX: u16 = xPointBuffer.items[0];
+        //var lastY: u16 = yPointBuffer.items[0];
+        //var lastCurve: bool = true;
         for (xPointBuffer.items[1..], yPointBuffer.items[1..], isCurveBuffer.items[1..], 1..) |x, y, curve, idx| {
-            const lastX = xPointsBuffer.items[idx - 1];
-            const lastY = yPointsBuffer.items[idx - 1];
+            const lastX = xPointBuffer.items[idx - 1];
+            const lastY = yPointBuffer.items[idx - 1];
             const lastCurve = isCurveBuffer.items[idx - 1];
-            defer {
-                lastX = x;
-                lastY = y;
-                lastCurve = curve;
-            }
+
             if (curve and lastCurve) {
                 try regular.addSegment(.{
                     .straight = .{

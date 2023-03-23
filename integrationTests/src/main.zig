@@ -32,8 +32,22 @@ pub fn main() !void {
     defer img.deinit();
     try img.appendNTimes(1, width * height);
 
-    bezier.quadratic(.{ .x = 50, .y = 50 }, .{ .x = 200, .y = 50 }, .{ .x = 200, .y = 200 }, &points);
+    bezier.quadratic(
+        .{ .x = 50, .y = 50 },
+        .{ .x = 200, .y = 50 },
+        .{ .x = 200, .y = 200 },
+        &points,
+    );
     setPoints(img.items, width, &points, 2);
+
+    bezier.cubic(
+        .{ .x = 50, .y = 50 },
+        .{ .x = 200, .y = 50 },
+        .{ .x = 50, .y = 200 },
+        .{ .x = 200, .y = 200 },
+        &points,
+    );
+    setPoints(img.items, width, &points, 3);
 
     const pallete = [_]sixel.Pixel{
         .{ .r = 0, .g = 0, .b = 0 },
