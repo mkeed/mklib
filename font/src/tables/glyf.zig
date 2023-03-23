@@ -8,8 +8,7 @@ const StraightLine = struct {
 
 const CurvedLine = struct {
     start: Point,
-    control1: Point,
-    Control2: Point,
+    control: Point,
     end: Point,
 };
 
@@ -49,8 +48,8 @@ const CompositeGlyph = struct {
 const RegularGlyph = struct {
     alloc: std.mem.Allocator,
     contours: std.ArrayList(Contour),
-    pub fn init(alloc: std.mem.Allocator) Glyph {
-        return Glyph{
+    pub fn init(alloc: std.mem.Allocator) RegularGlyph {
+        return RegularGlyph{
             .alloc = alloc,
             .contours = std.ArrayList(Contour).init(alloc),
         };
@@ -60,6 +59,17 @@ const RegularGlyph = struct {
             item.deinit();
         }
         self.contours.deinit();
+    }
+    pub fn addSegment(self: RegularGyph, line: Line) !void {
+        if (self.contours.items.len == 0) {
+            try self.newContour();
+        }
+        try self.contours.items[self.contours.items.len - 1].points.append(line);
+    }
+    pub fn newContour(self: RegularGlyph) !void {
+        var c = Contour.init(alloc);
+        errdefer c.deinit();
+        try self.contours.append(c);
     }
 };
 
@@ -127,10 +137,14 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
     defer yPointBuffer.deinit();
     var isCurveBuffer = std.ArrayList(bool).init(alloc);
     defer isCurveBuffer.deinit();
+    var pointsBuffer = std.ArrayList(u16).init(alloc);
+    defer pointsBuffer.deinit();
     for (0..numGlyfs) |glyfIdx| {
         //std.log.info("{}[{}:{x}]------------------------------------------------------------", .{ glyfIdx, fbs.pos, fbs.pos });
         xPointBuffer.clearRetainingCapacity();
         yPointBuffer.clearRetainingCapacity();
+        isCurveBuffer.clearRetainingCapacity();
+        pointsBuffer.clearRetainingCapacity();
         const numberOfContours = try reader.readIntBig(i16);
 
         const xMin = try reader.readIntBig(i16);
@@ -190,10 +204,13 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
             });
             continue;
         }
+        var regular = RegularGlyph.init(alloc);
+
         const num = @intCast(u16, numberOfContours);
         var last: usize = 0;
         for (0..num) |_| {
             const endPoint = try reader.readIntBig(u16);
+            try pointsBuffer.append(endPoint);
             last = endPoint;
         }
         const instructionLength = try reader.readIntBig(u16);
@@ -221,6 +238,7 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
             else if (f.xSame == 1) @as(i16, 0) else try reader.readIntBig(i16);
             curPoint += val;
             try xPointBuffer.append(curPoint);
+            try isCurveBuffer.append(f.onCurve == 1);
         }
         curPoint = 0;
         for (flags.items) |f| {
@@ -229,6 +247,33 @@ pub fn parse(data: []const u8, alloc: std.mem.Allocator, numGlyfs: usize) !GLYF 
             else if (f.ySame == 1) @as(i16, 0) else try reader.readIntBig(i16);
             curPoint += val;
             try yPointBuffer.append(curPoint);
+        }
+        if (yPointBuffer.items.len != xPointBuffer.items.len) return error.InvalidNumberOfPoints;
+        var lastX: u16 = xPointBuffer.items[0];
+        var lastY: u16 = yPointBuffer.items[0];
+        var lastCurve: bool = true;
+        for (xPointBuffer.items[1..], yPointBuffer.items[1..], isCurveBuffer.items[1..], 1..) |x, y, curve, idx| {
+            const lastX = xPointsBuffer.items[idx - 1];
+            const lastY = yPointsBuffer.items[idx - 1];
+            const lastCurve = isCurveBuffer.items[idx - 1];
+            defer {
+                lastX = x;
+                lastY = y;
+                lastCurve = curve;
+            }
+            if (curve and lastCurve) {
+                try regular.addSegment(.{
+                    .straight = .{
+                        .start = .{ .x = lastX, .y = lastY },
+                        .end = .{ .x = y, .y = y },
+                    },
+                });
+            }
+            const c: u8 = if (curve) 'p' else 'c';
+            std.log.info("[{},{}][{c}]", .{ x, y, c });
+            if (std.mem.indexOf(u16, pointsBuffer.items, &.{@truncate(u16, idx)}) != null) {
+                std.log.info("end of contour", .{});
+            }
         }
 
         //if (glyfIdx > 4) break;
