@@ -134,34 +134,37 @@ pub fn listFonts(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
         }
         fonts.deinit();
     }
-    const defaultFolder = "/usr/share/fonts";
-    var dir = try std.fs.cwd().openIterableDir(defaultFolder, .{});
-    defer dir.close();
-    var dirIter = dir.iterate();
-    while (try dirIter.next()) |item| {
-        switch (item.kind) {
-            .Directory => {
-                var fontDir = try dir.dir.openIterableDir(item.name, .{});
-                defer fontDir.close();
-                var fontIter = fontDir.iterate();
-                while (try fontIter.next()) |fontFile| {
-                    switch (fontFile.kind) {
-                        .File => {
-                            var split = std.mem.splitBackwards(u8, fontFile.name, ".");
-                            if (split.next()) |n| {
-                                if (std.mem.eql(u8, "ttf", n) or std.mem.eql(u8, "otf", n)) {
-                                    var filename = std.ArrayList(u8).init(alloc);
-                                    errdefer filename.deinit();
-                                    try filename.appendSlice(fontFile.name);
-                                    try fonts.append(filename);
+    const searchFolders = [_][]const u8{ "/usr/share/fonts/truetype", "/usr/share/fonts/opentype", "/usr/share/fonts/" };
+
+    for (searchFolders) |folderName| {
+        var dir = try std.fs.cwd().openIterableDir(folderName, .{});
+        defer dir.close();
+        var dirIter = dir.iterate();
+        while (try dirIter.next()) |item| {
+            switch (item.kind) {
+                .Directory => {
+                    var fontDir = try dir.dir.openIterableDir(item.name, .{});
+                    defer fontDir.close();
+                    var fontIter = fontDir.iterate();
+                    while (try fontIter.next()) |fontFile| {
+                        switch (fontFile.kind) {
+                            .File => {
+                                var split = std.mem.splitBackwards(u8, fontFile.name, ".");
+                                if (split.next()) |n| {
+                                    if (std.mem.eql(u8, "ttf", n) or std.mem.eql(u8, "otf", n)) {
+                                        var filename = std.ArrayList(u8).init(alloc);
+                                        errdefer filename.deinit();
+                                        try filename.appendSlice(fontFile.name);
+                                        try fonts.append(filename);
+                                    }
                                 }
-                            }
-                        },
-                        else => continue,
+                            },
+                            else => continue,
+                        }
                     }
-                }
-            },
-            else => continue,
+                },
+                else => continue,
+            }
         }
     }
     return fonts;
