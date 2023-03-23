@@ -12,7 +12,7 @@ fn getPixel(pixels: []const u8, width: usize, height: usize, x: usize, y: usize)
 pub fn render(pallete: []const Pixel, pixels: []const u8, width: usize, height: usize, writer: anytype) !void {
     try std.fmt.format(writer, "\x1bPq", .{});
     for (pallete, 0..) |p, idx| {
-        try std.fmt.format(writer, "#{};{};{};{}", .{ idx, p.r, p.g, p.b });
+        try std.fmt.format(writer, "#{};2;{};{};{}", .{ idx, p.r, p.g, p.b });
     }
     var row: usize = 0;
     while (row < height) : (row += 6) {
