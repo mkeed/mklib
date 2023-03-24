@@ -27,7 +27,7 @@ const os2 = @import("tables/os2.zig");
 const post = @import("tables/post.zig");
 const glyf = @import("tables/glyf.zig");
 
-const Table = struct {
+pub const Table = struct {
     data: []const u8,
     pub fn verify(self: Table) !void {
         const numTables = std.mem.readIntSliceBig(u16, self.data[4..8]);
@@ -51,6 +51,20 @@ const Table = struct {
                 });
                 return error.InvalidCheckSum;
             }
+        }
+    }
+    pub fn listTables(self: Table, res: *std.ArrayList([4]u8)) !void {
+        const numTables = std.mem.readIntSliceBig(u16, self.data[4..8]);
+        for (0..numTables) |idx| {
+            const pos = 12 + idx * 16;
+
+            const tag = [4]u8{
+                self.data[pos],
+                self.data[pos + 1],
+                self.data[pos + 2],
+                self.data[pos + 3],
+            };
+            try res.append(tag);
         }
     }
     fn calculateCheckSum(data: []const u8, isHead: bool) u32 {
@@ -134,7 +148,7 @@ pub fn listFonts(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
         }
         fonts.deinit();
     }
-    const searchFolders = [_][]const u8{ "/usr/share/fonts/truetype", "/usr/share/fonts/opentype", "/usr/share/fonts/" };
+    const searchFolders = [_][]const u8{ "/usr/share/fonts/truetype", "/usr/share/fonts/opentype", "/usr/share/fonts" };
 
     for (searchFolders) |folderName| {
         var dir = try std.fs.cwd().openIterableDir(folderName, .{});
@@ -154,7 +168,11 @@ pub fn listFonts(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
                                     if (std.mem.eql(u8, "ttf", n) or std.mem.eql(u8, "otf", n)) {
                                         var filename = std.ArrayList(u8).init(alloc);
                                         errdefer filename.deinit();
-                                        try filename.appendSlice(fontFile.name);
+                                        try std.fmt.format(filename.writer, "{s}/{s}/{s}", .{
+                                            folderName,
+                                            item.name,
+                                            fontFile.name,
+                                        });
                                         try fonts.append(filename);
                                     }
                                 }

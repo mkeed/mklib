@@ -3,6 +3,8 @@ const font = @import("font.zig");
 
 pub const ProcessInfo = struct {
     files: std.ArrayList(std.ArrayList(u8)),
+    dumpTables: bool = false,
+    addAllSystemFonts: bool = false,
     pub fn init(alloc: std.mem.Allocator) !ProcessInfo {
         var args = try std.process.argsWithAllocator(alloc);
         defer args.deinit();
@@ -16,6 +18,12 @@ pub const ProcessInfo = struct {
                 continue;
             }
             if (val.len == '-') {
+                if (std.mem.eql(u8, val, "--dumpTables")) {
+                    self.dumpTables = true;
+                }
+                if (std.mem.eql(u8, val, "--addAllSystemFonts")) {
+                    self.addAllSystemFonts = true;
+                }
                 //is option
             } else {
                 var name = std.ArrayList(u8).init(alloc);
@@ -43,6 +51,18 @@ pub fn main() !void {
     var procInfo = try ProcessInfo.init(alloc);
     defer procInfo.deinit();
 
+    if (procInfo.addAllSystemFonts) {
+        var fonts = font.listFonts(alloc);
+        defer {
+            for (fonts.items) |item| {
+                item.deinit();
+            }
+            fonts.deinit();
+        }
+        while (fonts.popOrNull()) |item| {
+            try procInfo.files.append(item);
+        }
+    }
     var fileBuffer = std.ArrayList(u8).init(alloc);
     defer fileBuffer.deinit();
     var errorFiles = std.ArrayList(std.ArrayList(u8)).init(alloc);
