@@ -60,13 +60,13 @@ const RegularGlyph = struct {
         }
         self.contours.deinit();
     }
-    pub fn addSegment(self: RegularGlyph, line: Line) !void {
+    pub fn addSegment(self: *RegularGlyph, line: Line) !void {
         if (self.contours.items.len == 0) {
             try self.newContour();
         }
         try self.contours.items[self.contours.items.len - 1].points.append(line);
     }
-    pub fn newContour(self: RegularGlyph) !void {
+    pub fn newContour(self: *RegularGlyph) !void {
         var c = Contour.init(self.alloc);
         errdefer c.deinit();
         try self.contours.append(c);

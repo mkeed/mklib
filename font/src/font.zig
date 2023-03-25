@@ -103,7 +103,7 @@ pub fn parseFont(data: []const u8, alloc: std.mem.Allocator) !Font {
     const reader = fbs.reader();
 
     const version = try reader.readIntBig(u32);
-    if (version != 0x00010000 and version != 0x4F54544F) {
+    if (version != 0x00010000 and version != std.mem.bigToNative(u32, 0x4F54544F)) {
         std.log.err("Expected 0x00010000 or 0X4F54544F got [{x}]", .{version});
         return error.InvalidFileMagicNumber;
     }
@@ -151,7 +151,7 @@ pub fn listFonts(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
     const searchFolders = [_][]const u8{ "/usr/share/fonts/truetype", "/usr/share/fonts/opentype", "/usr/share/fonts" };
 
     for (searchFolders) |folderName| {
-        var dir = try std.fs.cwd().openIterableDir(folderName, .{});
+        var dir = std.fs.cwd().openIterableDir(folderName, .{}) catch continue;
         defer dir.close();
         var dirIter = dir.iterate();
         while (try dirIter.next()) |item| {
@@ -168,7 +168,7 @@ pub fn listFonts(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
                                     if (std.mem.eql(u8, "ttf", n) or std.mem.eql(u8, "otf", n)) {
                                         var filename = std.ArrayList(u8).init(alloc);
                                         errdefer filename.deinit();
-                                        try std.fmt.format(filename.writer, "{s}/{s}/{s}", .{
+                                        try std.fmt.format(filename.writer(), "{s}/{s}/{s}", .{
                                             folderName,
                                             item.name,
                                             fontFile.name,
