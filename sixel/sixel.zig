@@ -9,26 +9,54 @@ fn getPixel(pixels: []const u8, width: usize, height: usize, x: usize, y: usize)
     return pixels[width * y + x];
 }
 
-pub fn render(pallete: []const Pixel, pixels: []const u8, width: usize, height: usize, writer: anytype) !void {
+const imgRender = struct {
+    pallete: []const Pixel,
+    pixels: []const u8,
+    width: usize,
+    height: usize,
+    pub fn getHeight(self: imgRender) usize {
+        return self.height;
+    }
+    pub fn getWidth(self: imgRender) usize {
+        return self.width;
+    }
+    pub fn getPallete(self: imgRender, idx: usize) ?Pixel {
+        if (idx < self.pallete.len) return self.pallete[idx];
+        return null;
+    }
+    pub fn getPixel(self: imgRender, x: usize, y: usize) u8 {
+        if (x >= self.width or y >= self.height) {
+            return 0;
+        }
+        return self.pixels[self.width * y + x];
+    }
+};
+
+pub fn render(
+    img: anytype,
+    writer: anytype,
+) !void {
     try std.fmt.format(writer, "\x1bPq", .{});
-    for (pallete, 0..) |p, idx| {
-        try std.fmt.format(writer, "#{};2;{};{};{}", .{ idx, p.r, p.g, p.b });
+    var numPallete: usize = 0;
+    while (img.getPallete(numPallete)) |p| {
+        defer numPallete += 1;
+        try std.fmt.format(writer, "#{};2;{};{};{}", .{ numPallete, p.r, p.g, p.b });
     }
     var row: usize = 0;
-    while (row < height) : (row += 6) {
-        for (pallete, 0..) |_, pidx| {
+    while (row < img.getHeight()) : (row += 6) {
+        for (0..numPallete) |pidx| {
             //
             try std.fmt.format(writer, "#{}", .{pidx});
-            for (0..width) |w| {
+            for (0..img.getWidth()) |w| {
                 var val: u6 = 0;
                 for (0..6) |r| {
-                    if (getPixel(pixels, width, height, w, row + r) == pidx) {
+                    if (img.getPixel(w, row + r) == pidx) {
                         val |= @as(u6, 1) << @truncate(u3, r);
                     }
                 }
                 try std.fmt.format(writer, "{c}", .{toSixelAscii(val)});
             }
-            if (pidx == pallete.len - 1) {
+            if (pidx == numPallete - 1) {
                 try std.fmt.format(writer, "-\n", .{});
             } else {
                 try std.fmt.format(writer, "$\n", .{});
@@ -86,7 +114,12 @@ test {
         }
     }
 
-    try render(&pallete, img.items, width, height, writer);
+    try render(imgRender{
+        .pallete = &pallete,
+        .pixels = img.items,
+        .width = width,
+        .height = height,
+    }, writer);
 
     try std.fmt.format(stdout, "\n\n{s}\n\n", .{buffer.items});
 }
