@@ -61,7 +61,7 @@ pub fn main() !void {
     const writer = buffer.writer();
     const stdout = std.io.getStdOut().writer();
 
-    try sixel.render(&pallete, img.items, width, height, writer);
+    try sixel.render(sixel.imgRender{ .pallete = &pallete, .pixels = img.items, .width = width, .height = height }, writer);
 
     try std.fmt.format(stdout, "\n\n{s}\n\n", .{buffer.items});
 }

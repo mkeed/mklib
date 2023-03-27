@@ -9,7 +9,7 @@ fn getPixel(pixels: []const u8, width: usize, height: usize, x: usize, y: usize)
     return pixels[width * y + x];
 }
 
-const imgRender = struct {
+pub const imgRender = struct {
     pallete: []const Pixel,
     pixels: []const u8,
     width: usize,

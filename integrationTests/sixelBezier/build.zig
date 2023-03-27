@@ -25,12 +25,12 @@ pub fn build(b: *std.Build) void {
     });
 
     const bezier = b.createModule(.{
-        .source_file = .{ .path = "../bezier/src/bezier.zig" },
+        .source_file = .{ .path = "../../bezier/src/bezier.zig" },
     });
     exe.addModule("bezier", bezier);
 
     const sixel = b.createModule(.{
-        .source_file = .{ .path = "../sixel/sixel.zig" },
+        .source_file = .{ .path = "../../sixel/sixel.zig" },
     });
     exe.addModule("sixel", sixel);
     // This declares intent for the executable to be installed into the
@@ -60,17 +60,4 @@ pub fn build(b: *std.Build) void {
     // This will evaluate the `run` step rather than the default, which is "install".
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
-
-    // Creates a step for unit testing.
-    const exe_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/main.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
-
-    // Similar to creating the run step earlier, this exposes a `test` step to
-    // the `zig build --help` menu, providing a way for the user to request
-    // running the unit tests.
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&exe_tests.step);
 }
