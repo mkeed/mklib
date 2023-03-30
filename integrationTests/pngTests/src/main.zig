@@ -1,16 +1,43 @@
 const std = @import("std");
+const pngTests = @import("PngTests.zig");
+const png = @import("png");
+const sixel = @import("sixel");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    const testFolder = "../../image/PNG/PngSuite-2017jul19/";
-    var dir = try std.fs.cwd().openDir(testFolder, .{});
-    defer dir.close();
-    var testDir = try std.fs.cwd().openDir("test", .{});
-    defer testDir.close();
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    const testDir = "src/PngSuite-2017jul19/";
+    const dir = try std.fs.cwd().openDir(testDir, .{});
+    // const stdout_file = std.io.getStdOut().writer();
+    // var bw = std.io.bufferedWriter(stdout_file);
+    // defer bw.flush() catch {};
+    // const stdout = bw.writer();
+    var dataBuffer = std.ArrayList(u8).init(alloc);
+    defer dataBuffer.deinit();
+    for (pngTests.tests) |t| {
+        if (t.testCase) |tc| {
+            dataBuffer.clearRetainingCapacity();
+            const file = try dir.openFile(t.name, .{});
+            defer file.close();
+            try file.reader().readAllArrayList(&dataBuffer, std.math.maxInt(usize));
+            const img = try png.decodeImage(dataBuffer.items, alloc);
+            defer img.deinit();
+            for (0..tc.width) |w| {
+                for (0..tc.height) |h| {
+                    const p_exp = tc.getPixel(w, h);
+                    const p_act = img.getPixel(w, h) orelse unreachable;
+                    if (p_exp.r != p_act.r or
+                        p_exp.g != p_act.g or
+                        p_exp.b != p_act.b or
+                        (p_exp.a != null and p_exp.a != p_act.a))
+                    {
+                        std.log.err("[{s}][{},{}] {} != {}", .{ t.name, w, h, p_exp, p_act });
+                        return error.Invalid;
+                    }
+                }
+            }
+        }
+    }
 }

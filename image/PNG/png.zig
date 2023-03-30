@@ -5,6 +5,13 @@ const Image = @import("Image.zig").Image;
 
 const Filter = enum { None, Sub, Up, Average, Paeth };
 
+pub const RenPixel = struct {
+    r: u16,
+    g: u16,
+    b: u16,
+    a: u16,
+};
+
 pub const Point = struct {
     x: usize,
     y: usize,
@@ -180,7 +187,7 @@ pub const PLTE = struct {
         if (data.len % 3 != 0) return error.InvaldPLTE;
 
         var savedData = try alloc.alloc(u8, data.len);
-        for (data) |v, i| savedData[i] = v;
+        for (data, 0..) |v, i| savedData[i] = v;
         errdefer alloc.free(savedData);
         return PLTE{
             .alloc = alloc,
@@ -348,7 +355,7 @@ pub fn parseIDAT(data: []const u8, alloc: std.mem.Allocator, header: IHDR, img: 
         try parseLine(rowData, curRow, prevRow, header.bytesPerPixel());
 
         pimg.readRow(curRow[0 .. rowData.len - 1], scanLine, &iter);
-        for (curRow) |*v, i| {
+        for (curRow, 0..) |*v, i| {
             prevRow[i] = v.*;
             v.* = 0;
         }
@@ -364,20 +371,20 @@ pub fn avgArray(output: []u8, raw: []const u8, a: []const u8, b: []const u8) []c
     //     std.fmt.fmtSliceHexUpper(a),
     //     std.fmt.fmtSliceHexUpper(b),
     // });
-    for (raw) |val, idx| {
+    for (raw, 0..) |val, idx| {
         output[idx] = @truncate(u8, @intCast(u16, val) +% (std.math.divFloor(u16, (@intCast(u16, a[idx]) + @intCast(u16, b[idx])), 2) catch unreachable));
     }
     return output[0..raw.len];
 }
 pub fn subArray(output: []u8, a: []const u8, b: []const u8) []const u8 {
     if (b.len == 0) {
-        for (a) |val, idx| {
+        for (a, 0..) |val, idx| {
             output[idx] = val;
         }
 
         return output[0..a.len];
     } else {
-        for (a) |val, idx| {
+        for (a, 0..) |val, idx| {
             output[idx] = val +% b[idx];
         }
         return output[0..a.len];
@@ -399,7 +406,7 @@ pub fn paethPredictorBuf(buf: []u8, input: []const u8, a: []const u8, b: []const
     //     std.fmt.fmtSliceHexUpper(b),
     //     std.fmt.fmtSliceHexUpper(c),
     // });
-    for (input) |val, idx| {
+    for (input, 0..) |val, idx| {
         const pp = paethPredictor(a[idx], b[idx], c[idx]);
         buf[idx] = val +% pp;
     }
@@ -445,7 +452,7 @@ pub fn parseLine(rowData: []const u8, outRow: []u8, prevRow: []const u8, bytesPe
             ),
         };
 
-        for (pixel) |v, pidx| {
+        for (pixel, 0..) |v, pidx| {
             outRow[colidx + pidx] = v;
         }
     }
@@ -463,28 +470,53 @@ pub const IHDR = struct {
         if (val >= std.math.pow(u32, 2, depth)) return std.math.maxInt(T);
         return (std.math.maxInt(T) / @truncate(T, std.math.pow(u32, 2, @truncate(T, depth)) - 1)) * @truncate(T, val);
     }
-    pub fn convertToRGB(self: IHDR, data: []const u8) ![4]u8 {
+    pub fn convertToRGB(self: IHDR, data: []const u8) !RenPixel {
         switch (self.colourType) {
             .GrayScale => {
                 if (self.depth == 16) {
-                    const val = data[0]; // I think this is right. GOing from u16 to u8 just measn throwing away lower 8 bits
-                    return [4]u8{ val, val, val, val };
+                    return RenPixel{
+                        .r = std.mem.readIntSliceBig(u16, data[0..]),
+                        .g = std.mem.readIntSliceBig(u16, data[0..]),
+                        .b = std.mem.readIntSliceBig(u16, data[0..]),
+                        .a = std.math.maxInt(u16),
+                    };
                 } else {
                     const val = scaleDepth(u8, data[0], self.depth);
-                    return [4]u8{ val, val, val, val };
+
+                    return RenPixel{
+                        .r = val,
+                        .g = val,
+                        .b = val,
+                        .a = val,
+                    };
                 }
             },
             .RGB => {
                 if (self.depth == 16) {
-                    return [4]u8{ data[0], data[2], data[4], std.math.maxInt(u8) };
+                    return RenPixel{
+                        .r = std.mem.readIntSliceBig(u16, data[0..]),
+                        .g = std.mem.readIntSliceBig(u16, data[2..]),
+                        .b = std.mem.readIntSliceBig(u16, data[4..]),
+                        .a = std.math.maxInt(u16),
+                    };
                 } else {
-                    return [4]u8{ data[0], data[1], data[2], std.math.maxInt(u8) };
+                    return RenPixel{
+                        .r = data[0],
+                        .g = data[1],
+                        .b = data[2],
+                        .a = std.math.maxInt(u8),
+                    };
                 }
             },
             .Palette => {
                 if (self.palette) |p| {
                     if (p.get(data[0])) |val| {
-                        return [4]u8{ val[0], val[1], val[2], std.math.maxInt(u8) };
+                        return RenPixel{
+                            .r = val[0],
+                            .g = val[1],
+                            .b = val[2],
+                            .a = std.math.maxInt(u8),
+                        };
                     } else {
                         return error.PaletteTooSmall;
                     }
@@ -494,20 +526,40 @@ pub const IHDR = struct {
             },
             .AlphaGrayScale => {
                 if (self.depth == 16) {
-                    const val = data[0]; // I think this is right. GOing from u16 to u8 just measn throwing away lower 8 bits
-                    const alpha = data[2];
-                    return [4]u8{ val, val, val, alpha };
+                    const val = std.mem.readIntSliceBig(u16, data[0..]);
+                    const alpha = std.mem.readIntSliceBig(u16, data[2..]);
+                    return RenPixel{
+                        .r = val,
+                        .g = val,
+                        .b = val,
+                        .a = alpha,
+                    };
                 } else {
                     const val = data[0]; // I think this is right. GOing from u16 to u8 just measn throwing away lower 8 bits
                     const alpha = data[1];
-                    return [4]u8{ val, val, val, alpha };
+                    return RenPixel{
+                        .r = val,
+                        .g = val,
+                        .b = val,
+                        .a = alpha,
+                    };
                 }
             },
             .AlphaRGB => {
                 if (self.depth == 16) {
-                    return [4]u8{ data[0], data[2], data[4], data[6] };
+                    return RenPixel{
+                        .r = std.mem.readIntSliceBig(u16, data[0..]),
+                        .g = std.mem.readIntSliceBig(u16, data[2..]),
+                        .b = std.mem.readIntSliceBig(u16, data[4..]),
+                        .a = std.mem.readIntSliceBig(u16, data[6..]),
+                    };
                 } else {
-                    return [4]u8{ data[0], data[1], data[2], data[3] };
+                    return RenPixel{
+                        .r = data[0],
+                        .g = data[1],
+                        .b = data[2],
+                        .a = data[3],
+                    };
                 }
             },
         }
@@ -674,7 +726,7 @@ pub const IHDR = struct {
 pub fn table() [256]u32 {
     @setEvalBranchQuota(256 * 8 * 10);
     var crc_table = [1]u32{0} ** 256;
-    for (crc_table) |*val, idx| {
+    for (crc_table[0..], 0..) |*val, idx| {
         var c = @truncate(u32, idx);
         var k: usize = 0;
         while (k < 8) : (k += 1) {
@@ -706,6 +758,12 @@ pub const PNG = struct {
     pub fn deinit(self: PNG) void {
         self.img.deinit();
         self.header.deinit();
+    }
+    pub fn getPixel(self: PNG, x: usize, y: usize) ?RenPixel {
+        if (self.img.getPixel(x, y)) |data| {
+            return self.header.convertToRGB(data) catch return null;
+        }
+        return null;
     }
 };
 
@@ -784,7 +842,7 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
         } else if (std.mem.eql(u8, name[0..], "sBIT")) { // Significant bits
             var sbitdata = [4]u8{ 0, 0, 0, 0 };
             const rest = chunkData.rest();
-            for (rest) |v, i| sbitdata[i] = v;
+            for (rest, 0..) |v, i| sbitdata[i] = v;
             header.?.sbit = sbitdata;
         } else if (std.mem.eql(u8, name[0..], "tEXt")) { // Textual data
             const cd = chunkData.rest();
