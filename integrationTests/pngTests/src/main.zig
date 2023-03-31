@@ -22,7 +22,10 @@ pub fn main() !void {
             const file = try dir.openFile(t.name, .{});
             defer file.close();
             try file.reader().readAllArrayList(&dataBuffer, std.math.maxInt(usize));
-            const img = try png.decodeImage(dataBuffer.items, alloc);
+            const img = png.decodeImage(dataBuffer.items, alloc) catch |err| {
+                std.log.info("{s} => error {}", .{ t.name, err });
+                return err;
+            };
             defer img.deinit();
             for (0..tc.width) |w| {
                 for (0..tc.height) |h| {
@@ -33,6 +36,8 @@ pub fn main() !void {
                         p_exp.b != p_act.b or
                         (p_exp.a != null and p_exp.a != p_act.a))
                     {
+                        std.log.err("{}x{}", .{ tc.width, tc.height });
+                        std.log.err("{}", .{img.header});
                         std.log.err("[{s}][{},{}] {} != {}", .{ t.name, w, h, p_exp, p_act });
                         return error.Invalid;
                     }

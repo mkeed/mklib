@@ -37,7 +37,7 @@ pub const Image = struct {
         self.alloc.free(self.data);
     }
     pub fn setPixel(self: Image, x: usize, y: usize, pixel: []const u8) void {
-        //std.log.err("sp:[{}:{}] => [{}]",.{x,y,std.fmt.fmtSliceHexUpper(pixel)});
+        //std.log.err("sp:[{}:{}] => [{}]", .{ x, y, std.fmt.fmtSliceHexUpper(pixel) });
         if (x >= self.width or y >= self.height) return;
         const idx = (self.bytesPerPixel + 1) * (self.width * y + x);
 

@@ -24,7 +24,7 @@ pub const TestCase = struct {
     imageType: ImageType,
     pixels: []const Pixel,
     pub fn getPixel(self: TestCase, x: usize, y: usize) Pixel {
-        if (x > self.width or y > self.width) return .{ .r = 0, .g = 0, .b = 0 };
+        if (x > self.width or y > self.height) return .{ .r = 0, .g = 0, .b = 0 };
         return self.pixels[x + y * self.width];
     }
 };

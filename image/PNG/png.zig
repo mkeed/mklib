@@ -800,7 +800,7 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
                 header.?.height,
                 header.?.bytesPerPixel(),
             );
-            std.log.err("{any}", .{header});
+            //std.log.err("{any}", .{header});
         } else if (std.mem.eql(u8, name[0..], "IDAT")) {
             try parseIDAT(
                 chunkData.rest(),
@@ -808,7 +808,7 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
                 header.?,
                 img.?,
             );
-            std.log.err("IDAT", .{});
+            //std.log.err("IDAT", .{});
         } else if (std.mem.eql(u8, name[0..], "IEND")) {
             return PNG{
                 .img = img.?,
@@ -816,27 +816,31 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
             };
         } else if (std.mem.eql(u8, name[0..], "PLTE")) {
             header.?.palette = try PLTE.init(chunkData.rest(), alloc);
-            std.log.err("PLTE", .{});
+            //std.log.err("PLTE", .{});
         } else if (std.mem.eql(u8, name[0..], "bKGD")) { // Background colour
             //try parseBKGD(chunkData.rest(), header.?.colourType);
-            std.log.err("bKGD", .{});
+            //std.log.err("bKGD", .{});
             //return error.NotImplemented;
         } else if (std.mem.eql(u8, name[0..], "cHRM")) { // Primary chromaticities and white point
-            std.log.err("cHRM", .{});
+            //std.log.err("cHRM", .{});
             //return error.NotImplemented;
         } else if (std.mem.eql(u8, name[0..], "gAMA")) { // Image gamma
             header.?.gama = try chunkData.read(u32);
         } else if (std.mem.eql(u8, name[0..], "hIST")) { // Image histogram
             if (header) |hdr| {
                 if (hdr.palette) |plte| {
-                    std.log.err("plte:{}", .{std.fmt.fmtSliceHexUpper(plte.data)});
+                    _ = plte;
+                    //std.log.err("plte:{}", .{std.fmt.fmtSliceHexUpper(plte.data)});
                 }
             }
-            std.log.err("hIST:{}", .{std.fmt.fmtSliceHexUpper(chunkData.rest())});
+            //std.log.err("hIST:{}", .{std.fmt.fmtSliceHexUpper(chunkData.rest())});
         } else if (std.mem.eql(u8, name[0..], "pHYs")) { // Physical pixel dimensions
             const xphys = try chunkData.read(u32);
             const yphys = try chunkData.read(u32);
             const unit = try chunkData.read(u8);
+            //_ = xphys;
+            //_ = yphys;
+            //_ = unit;
             //try parsePHYS(chunkData.rest());
             std.log.info("pHYs:{}x{}:{}", .{ xphys, yphys, unit });
         } else if (std.mem.eql(u8, name[0..], "sBIT")) { // Significant bits
@@ -849,7 +853,7 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
             var idx: usize = 0;
             while (cd[idx] != 0) : (idx += 1) {}
 
-            std.log.err("tEXt:{s} => {s}", .{ cd[0..idx], cd[idx + 1 ..] });
+            //std.log.err("tEXt:{s} => {s}", .{ cd[0..idx], cd[idx + 1 ..] });
         } else if (std.mem.eql(u8, name[0..], "tIME")) { // Image last-modification time
             const y = try chunkData.read(u16);
             const m = try chunkData.read(u8);
@@ -857,7 +861,13 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
             const h = try chunkData.read(u8);
             const min = try chunkData.read(u8);
             const s = try chunkData.read(u8);
-            std.log.err("tIME {}-{}-{} {}:{}:{}", .{ y, m, d, h, min, s });
+            _ = y;
+            _ = m;
+            _ = d;
+            _ = h;
+            _ = min;
+            _ = s;
+            //std.log.err("tIME {}-{}-{} {}:{}:{}", .{ y, m, d, h, min, s });
         } else if (std.mem.eql(u8, name[0..], "tRNS")) { // Transparency
             std.log.err("tRNS", .{});
             //return error.NotImplemented;
@@ -867,7 +877,7 @@ pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
             var idx: usize = 0;
             while (cd[idx] != 0) : (idx += 1) {}
             //TODO decompress
-            std.log.err("zTXt :{s}", .{cd[0..idx]});
+            //std.log.err("zTXt :{s}", .{cd[0..idx]});
         }
     }
     return error.MissingIEND;
