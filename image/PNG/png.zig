@@ -770,6 +770,8 @@ pub const PNG = struct {
 pub fn decoder(Reader: anytype) type {
     return struct {
         const Self = @this();
+        reader: Reader,
+
         pub fn init(reader: Reader) Self {}
     };
 }
