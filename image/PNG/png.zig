@@ -767,6 +767,13 @@ pub const PNG = struct {
     }
 };
 
+pub fn decoder(Reader: anytype) type {
+    return struct {
+        const Self = @this();
+        pub fn init(reader: Reader) Self {}
+    };
+}
+
 pub fn decodeImage(data: []const u8, alloc: std.mem.Allocator) !PNG {
     var dr = DataReader.init(data, .Big);
     const start = try dr.readSlice(startbytes.len);
