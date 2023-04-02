@@ -2,6 +2,19 @@ const Permision = struct {
     write: bool = false,
     read: bool = false,
     exec: bool = false,
+    pub fn format(self: Permision, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        if (self.write) {
+            try std.fmt.format(writer, "w", .{});
+        }
+        if (self.read) {
+            try std.fmt.format(writer, "r", .{});
+        }
+        if (self.exec) {
+            try std.fmt.format(writer, "x", .{});
+        }
+    }
 };
 pub const MemoryRegion = struct {
     name: []const u8,
@@ -26,7 +39,24 @@ pub const SymbolDefinition = struct {
 pub const LinkerInfo = struct {
     entryPoint: []const u8,
     memoryRegions: []const *MemoryRegion,
+    variables: []const Variables,
     sections: []const Section,
+    pub fn generate(self: LinkerInfo, writre: anytype) !void {
+        try std.fmt.format(writer, "/*------Generated File------*/\n", .{});
+        try std.fmt.format(writer, "ENTRY({s})\n", .{self.entryPoint});
+        for (self.variables) |v| {
+            try std.fmt.format(writer, "{s} = {s};\n", .{ v.name, v.value() });
+        }
+        try std.fmt.format(writer, "MEMORY\n{{\n", .{});
+        for (self.regions) |r| {
+            try std.fmt.format(writer, "    {s} ({})  : ORIGIN  = 0x{x}, LENGTH = {}{c}\n", .{
+                r.name,
+                r.permision,
+                r.origin,
+                r.length,
+            });
+        }
+    }
 };
 
 fn k(len: usize) usize {
