@@ -18,11 +18,14 @@ pub fn main() !void {
     defer dataBuffer.deinit();
     for (pngTests.tests) |t| {
         if (t.testCase) |tc| {
+            std.log.info("{s}", .{t.name});
             dataBuffer.clearRetainingCapacity();
             const file = try dir.openFile(t.name, .{});
             defer file.close();
             try file.reader().readAllArrayList(&dataBuffer, std.math.maxInt(usize));
-            const img = png.decodeImage(dataBuffer.items, alloc) catch |err| {
+            var fbs = std.io.fixedBufferStream(dataBuffer.items);
+            const fbs_reader = fbs.reader();
+            const img = png.decodeImage(fbs_reader, alloc) catch |err| {
                 std.log.info("{s} => error {}", .{ t.name, err });
                 return err;
             };

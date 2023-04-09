@@ -327,9 +327,7 @@ pub const interlaceIter = struct {
     width: usize,
 };
 
-pub fn parseIDAT(data: []const u8, alloc: std.mem.Allocator, header: IHDR, img: Image) !void {
-    var fbStream = std.io.fixedBufferStream(data);
-    var reader = fbStream.reader();
+pub fn parseIDAT(reader: anytype, alloc: std.mem.Allocator, header: IHDR, img: Image) !void {
     var decomp = try std.compress.zlib.zlibStream(alloc, reader);
     defer decomp.deinit();
     var output = try decomp.reader().readAllAlloc(alloc, std.math.maxInt(usize));
@@ -579,12 +577,11 @@ pub const IHDR = struct {
     palette: ?PLTE = null,
     gama: ?u32 = null,
     sbit: ?[4]u8 = null,
-    pub fn parse(data: []const u8) !IHDR {
-        var dr = DataReader.init(data, .Big);
-        const width = try dr.read(u32);
-        const height = try dr.read(u32);
-        const depth = try dr.read(u8);
-        const colourType = std.meta.intToEnum(ColourType, try dr.read(u8)) catch return error.INvalidColourType;
+    pub fn parse(reader: anytype) !IHDR {
+        const width = try reader.readIntBig(u32);
+        const height = try reader.readIntBig(u32);
+        const depth = try reader.readIntBig(u8);
+        const colourType = std.meta.intToEnum(ColourType, try reader.readIntBig(u8)) catch return error.INvalidColourType;
         switch (colourType) {
             .GrayScale => {
                 switch (depth) {
@@ -606,11 +603,11 @@ pub const IHDR = struct {
             },
         }
 
-        const compression = try dr.read(u8);
+        const compression = try reader.readIntBig(u8);
         if (compression != 0) return error.InvalidCompression;
-        const filter = try dr.read(u8);
+        const filter = try reader.readIntBig(u8);
         if (filter != 0) return error.InvalidFilter;
-        const interlace = std.meta.intToEnum(Interlace, try dr.read(u8)) catch return error.InvalidInterlace;
+        const interlace = std.meta.intToEnum(Interlace, try reader.readIntBig(u8)) catch return error.InvalidInterlace;
         return IHDR{
             .width = width,
             .height = height,
@@ -768,8 +765,7 @@ pub const PNG = struct {
 };
 
 pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
-    var dr = DataReader.init(data, .Big);
-    const start = try dr.readSlice(startbytes.len);
+    const start = try reader.readBoundedBytes(startbytes.len);
     var header: ?IHDR = null;
     errdefer {
         if (header) |hdr| {
@@ -782,18 +778,26 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
             i.deinit();
         }
     }
-    if (std.mem.eql(u8, start, startbytes[0..]) == false) {
+    if (std.mem.eql(u8, start.slice(), startbytes[0..]) == false) {
         return error.InvalidBytes;
     }
-    while (dr.dataAvailable()) {
-        const length = try dr.read(u32);
-        var chunkData = try dr.readReader(length + 4);
-        const name = try chunkData.readArray(4);
-        const crc = try dr.read(u32);
-        const calcCRC = computeCrc(chunkData.data);
+
+    var chunkBuffer = std.ArrayList(u8).init(alloc);
+    defer chunkBuffer.deinit();
+    var idatData = std.ArrayList(u8).init(alloc);
+    defer idatData.deinit();
+    while (true) {
+        const length = try reader.readIntBig(u32);
+        try chunkBuffer.resize(length + 4);
+        _ = try reader.readAll(chunkBuffer.items);
+        const crc = try reader.readIntBig(u32);
+        const calcCRC = computeCrc(chunkBuffer.items);
+        var chunk_stream = std.io.fixedBufferStream(chunkBuffer.items);
+        const chunkReader = chunk_stream.reader();
+        const name = try chunkReader.readBoundedBytes(4);
         if (crc != calcCRC) return error.InvalidCRC;
-        if (std.mem.eql(u8, name[0..], "IHDR")) {
-            header = try IHDR.parse(chunkData.rest());
+        if (std.mem.eql(u8, name.slice(), "IHDR")) {
+            header = try IHDR.parse(chunkReader);
             img = try Image.init(
                 alloc,
                 header.?.width,
@@ -801,32 +805,35 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
                 header.?.bytesPerPixel(),
             );
             //std.log.err("{any}", .{header});
-        } else if (std.mem.eql(u8, name[0..], "IDAT")) {
+        } else if (std.mem.eql(u8, name.slice(), "IDAT")) {
+            try idatData.appendSlice(chunkBuffer.items[4..]);
+            //std.log.err("IDAT", .{});
+        } else if (std.mem.eql(u8, name.slice(), "IEND")) {
+            var fbs = std.io.fixedBufferStream(idatData.items);
+            const fbsreader = fbs.reader();
             try parseIDAT(
-                chunkData.rest(),
+                fbsreader,
                 alloc,
                 header.?,
                 img.?,
             );
-            //std.log.err("IDAT", .{});
-        } else if (std.mem.eql(u8, name[0..], "IEND")) {
             return PNG{
                 .img = img.?,
                 .header = header.?,
             };
-        } else if (std.mem.eql(u8, name[0..], "PLTE")) {
-            header.?.palette = try PLTE.init(chunkData.rest(), alloc);
+        } else if (std.mem.eql(u8, name.slice(), "PLTE")) {
+            header.?.palette = try PLTE.init(chunkBuffer.items[4..], alloc);
             //std.log.err("PLTE", .{});
-        } else if (std.mem.eql(u8, name[0..], "bKGD")) { // Background colour
-            //try parseBKGD(chunkData.rest(), header.?.colourType);
+        } else if (std.mem.eql(u8, name.slice(), "bKGD")) { // Background colour
+            //try parseBKGD(chunkReader, header.?.colourType);
             //std.log.err("bKGD", .{});
             //return error.NotImplemented;
-        } else if (std.mem.eql(u8, name[0..], "cHRM")) { // Primary chromaticities and white point
+        } else if (std.mem.eql(u8, name.slice(), "cHRM")) { // Primary chromaticities and white point
             //std.log.err("cHRM", .{});
             //return error.NotImplemented;
-        } else if (std.mem.eql(u8, name[0..], "gAMA")) { // Image gamma
-            header.?.gama = try chunkData.read(u32);
-        } else if (std.mem.eql(u8, name[0..], "hIST")) { // Image histogram
+        } else if (std.mem.eql(u8, name.slice(), "gAMA")) { // Image gamma
+            header.?.gama = try chunkReader.readIntBig(u32);
+        } else if (std.mem.eql(u8, name.slice(), "hIST")) { // Image histogram
             if (header) |hdr| {
                 if (hdr.palette) |plte| {
                     _ = plte;
@@ -834,33 +841,33 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
                 }
             }
             //std.log.err("hIST:{}", .{std.fmt.fmtSliceHexUpper(chunkData.rest())});
-        } else if (std.mem.eql(u8, name[0..], "pHYs")) { // Physical pixel dimensions
-            const xphys = try chunkData.read(u32);
-            const yphys = try chunkData.read(u32);
-            const unit = try chunkData.read(u8);
+        } else if (std.mem.eql(u8, name.slice(), "pHYs")) { // Physical pixel dimensions
+            const xphys = try chunkReader.readIntBig(u32);
+            const yphys = try chunkReader.readIntBig(u32);
+            const unit = try chunkReader.readIntBig(u8);
             //_ = xphys;
             //_ = yphys;
             //_ = unit;
             //try parsePHYS(chunkData.rest());
             std.log.info("pHYs:{}x{}:{}", .{ xphys, yphys, unit });
-        } else if (std.mem.eql(u8, name[0..], "sBIT")) { // Significant bits
-            var sbitdata = [4]u8{ 0, 0, 0, 0 };
-            const rest = chunkData.rest();
-            for (rest, 0..) |v, i| sbitdata[i] = v;
-            header.?.sbit = sbitdata;
-        } else if (std.mem.eql(u8, name[0..], "tEXt")) { // Textual data
-            const cd = chunkData.rest();
-            var idx: usize = 0;
-            while (cd[idx] != 0) : (idx += 1) {}
+        } else if (std.mem.eql(u8, name.slice(), "sBIT")) { // Significant bits
+            //var sbitdata = [4]u8{ 0, 0, 0, 0 };
+            //const rest = chunkData.rest();
+            //for (rest, 0..) |v, i| sbitdata[i] = v;
+            //header.?.sbit = sbitdata;
+        } else if (std.mem.eql(u8, name.slice(), "tEXt")) { // Textual data
+            //const cd = chunkData.rest();
+            //var idx: usize = 0;
+            //while (cd[idx] != 0) : (idx += 1) {}
 
             //std.log.err("tEXt:{s} => {s}", .{ cd[0..idx], cd[idx + 1 ..] });
-        } else if (std.mem.eql(u8, name[0..], "tIME")) { // Image last-modification time
-            const y = try chunkData.read(u16);
-            const m = try chunkData.read(u8);
-            const d = try chunkData.read(u8);
-            const h = try chunkData.read(u8);
-            const min = try chunkData.read(u8);
-            const s = try chunkData.read(u8);
+        } else if (std.mem.eql(u8, name.slice(), "tIME")) { // Image last-modification time
+            const y = try chunkReader.readIntBig(u16);
+            const m = try chunkReader.readIntBig(u8);
+            const d = try chunkReader.readIntBig(u8);
+            const h = try chunkReader.readIntBig(u8);
+            const min = try chunkReader.readIntBig(u8);
+            const s = try chunkReader.readIntBig(u8);
             _ = y;
             _ = m;
             _ = d;
@@ -868,14 +875,14 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
             _ = min;
             _ = s;
             //std.log.err("tIME {}-{}-{} {}:{}:{}", .{ y, m, d, h, min, s });
-        } else if (std.mem.eql(u8, name[0..], "tRNS")) { // Transparency
+        } else if (std.mem.eql(u8, name.slice(), "tRNS")) { // Transparency
             std.log.err("tRNS", .{});
             //return error.NotImplemented;
-        } else if (std.mem.eql(u8, name[0..], "zTXt")) { // Compressed textual data
+        } else if (std.mem.eql(u8, name.slice(), "zTXt")) { // Compressed textual data
 
-            const cd = chunkData.rest();
-            var idx: usize = 0;
-            while (cd[idx] != 0) : (idx += 1) {}
+            //const cd = chunkData.rest();
+            //var idx: usize = 0;
+            //while (cd[idx] != 0) : (idx += 1) {}
             //TODO decompress
             //std.log.err("zTXt :{s}", .{cd[0..idx]});
         }
