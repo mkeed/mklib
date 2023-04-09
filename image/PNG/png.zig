@@ -10,6 +10,9 @@ pub const RenPixel = struct {
     g: u16,
     b: u16,
     a: u16,
+    pub fn eqlNoAlpha(self: RenPixel, other: RenPixel) bool {
+        return self.r == other.r and self.g == self.g and self.b == self.b;
+    }
 };
 
 pub const Point = struct {
@@ -182,12 +185,21 @@ var exitEarly = false;
 
 pub const PLTE = struct {
     alloc: std.mem.Allocator,
-    data: []const u8,
+    data: []u8,
+    hasAlpha: bool = false,
     pub fn init(data: []const u8, alloc: std.mem.Allocator) !PLTE {
         if (data.len % 3 != 0) return error.InvaldPLTE;
 
-        var savedData = try alloc.alloc(u8, data.len);
-        for (data, 0..) |v, i| savedData[i] = v;
+        var savedData = try alloc.alloc(u8, data.len * 4 / 3);
+        const items = data.len / 3;
+        for (0..items) |i| {
+            const in_idx = i * 3;
+            const out_idx = i * 4;
+            savedData[out_idx + 0] = data[in_idx + 0];
+            savedData[out_idx + 1] = data[in_idx + 1];
+            savedData[out_idx + 2] = data[in_idx + 2];
+            savedData[out_idx + 3] = 255;
+        }
         errdefer alloc.free(savedData);
         return PLTE{
             .alloc = alloc,
@@ -195,8 +207,10 @@ pub const PLTE = struct {
         };
     }
     pub fn get(self: PLTE, idx: usize) ?[]const u8 {
-        if (idx > self.data.len / 3) return null;
-        return self.data[idx * 3 .. (idx + 1) * 3];
+        if (idx > self.data.len / 4) return null;
+        const val = self.data[idx * 4 ..][0..4];
+
+        return val;
     }
     pub fn deinit(self: PLTE) void {
         self.alloc.free(self.data);
@@ -464,9 +478,68 @@ pub const IHDR = struct {
         AlphaGrayScale = 4,
         AlphaRGB = 6,
     };
+    pub const tRNSData = union(enum) {
+        GrayScale: u16,
+        RGB: RenPixel,
+    };
     pub fn scaleDepth(comptime T: type, val: u16, depth: u16) T {
         if (val >= std.math.pow(u32, 2, depth)) return std.math.maxInt(T);
         return (std.math.maxInt(T) / @truncate(T, std.math.pow(u32, 2, @truncate(T, depth)) - 1)) * @truncate(T, val);
+    }
+    pub fn addTrns(self: *IHDR, data: []const u8) !void {
+        switch (self.colourType) {
+            .GrayScale => {
+                if (data.len < 2) return error.InvalidTrns;
+                self.tRNS = .{
+                    .GrayScale = std.mem.readIntSliceBig(u16, data),
+                };
+            },
+            .RGB => {
+                self.tRNS = .{
+                    .RGB = .{
+                        .r = std.mem.readIntSliceBig(u16, data),
+                        .g = std.mem.readIntSliceBig(u16, data[2..]),
+                        .b = std.mem.readIntSliceBig(u16, data[4..]),
+                        .a = 0,
+                    },
+                };
+            },
+            .Palette => {
+                if (self.palette) |*p| {
+                    for (data, 0..) |val, idx| {
+                        p.data[(idx * 4) + 3] = val;
+                    }
+                    p.hasAlpha = true;
+                } else {
+                    return error.InvalidChunkOrder;
+                }
+            },
+            .AlphaGrayScale => {
+                return error.InvalidtRNS;
+            },
+            .AlphaRGB => {
+                return error.InvaldtRNS;
+            },
+        }
+    }
+    pub fn getPixel(self: IHDR, data: []const u8) !RenPixel {
+        var pix = try self.convertToRGB(data);
+        if (self.tRNS) |trns| {
+            switch (trns) {
+                .GrayScale => |val| {
+                    const inputVal = if (self.depth == 16) std.mem.readIntSliceBig(u16, data) else @intCast(u16, data[0]);
+                    if (val == inputVal) {
+                        pix.a = 0;
+                    }
+                },
+                .RGB => |rgb| {
+                    if (pix.eqlNoAlpha(rgb)) {
+                        pix.a = 0;
+                    }
+                },
+            }
+        }
+        return pix;
     }
     pub fn convertToRGB(self: IHDR, data: []const u8) !RenPixel {
         switch (self.colourType) {
@@ -485,7 +558,7 @@ pub const IHDR = struct {
                         .r = val,
                         .g = val,
                         .b = val,
-                        .a = val,
+                        .a = 255,
                     };
                 }
             },
@@ -509,12 +582,16 @@ pub const IHDR = struct {
             .Palette => {
                 if (self.palette) |p| {
                     if (p.get(data[0])) |val| {
-                        return RenPixel{
+                        var pix = RenPixel{
                             .r = val[0],
                             .g = val[1],
                             .b = val[2],
                             .a = std.math.maxInt(u8),
                         };
+                        if (p.hasAlpha) {
+                            pix.a = val[3];
+                        }
+                        return pix;
                     } else {
                         return error.PaletteTooSmall;
                     }
@@ -577,6 +654,8 @@ pub const IHDR = struct {
     palette: ?PLTE = null,
     gama: ?u32 = null,
     sbit: ?[4]u8 = null,
+    tRNS: ?tRNSData = null,
+    //backGround: ?RenPixel = null,
     pub fn parse(reader: anytype) !IHDR {
         const width = try reader.readIntBig(u32);
         const height = try reader.readIntBig(u32);
@@ -706,7 +785,6 @@ pub const IHDR = struct {
                 else if (row < (blocks * 5)) 3 + self.width / 4 //
                 else if (row < (blocks * 11)) 1 + self.width / 2 //
                 else self.width;
-                //std.log.err("pixelsInblock:[{}] row:[{}] blocks:[{}]", .{ pixelsInBlock, row, blocks });
 
                 const bitsPerRow = pixelsInBlock * self.bitsPerPixel();
                 return std.math.divCeil(usize, bitsPerRow, 8) catch unreachable;
@@ -758,7 +836,7 @@ pub const PNG = struct {
     }
     pub fn getPixel(self: PNG, x: usize, y: usize) ?RenPixel {
         if (self.img.getPixel(x, y)) |data| {
-            return self.header.convertToRGB(data) catch return null;
+            return self.header.getPixel(data) catch return null;
         }
         return null;
     }
@@ -804,10 +882,8 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
                 header.?.height,
                 header.?.bytesPerPixel(),
             );
-            //std.log.err("{any}", .{header});
         } else if (std.mem.eql(u8, name.slice(), "IDAT")) {
             try idatData.appendSlice(chunkBuffer.items[4..]);
-            //std.log.err("IDAT", .{});
         } else if (std.mem.eql(u8, name.slice(), "IEND")) {
             var fbs = std.io.fixedBufferStream(idatData.items);
             const fbsreader = fbs.reader();
@@ -823,10 +899,8 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
             };
         } else if (std.mem.eql(u8, name.slice(), "PLTE")) {
             header.?.palette = try PLTE.init(chunkBuffer.items[4..], alloc);
-            //std.log.err("PLTE", .{});
         } else if (std.mem.eql(u8, name.slice(), "bKGD")) { // Background colour
             //try parseBKGD(chunkReader, header.?.colourType);
-            //std.log.err("bKGD", .{});
             //return error.NotImplemented;
         } else if (std.mem.eql(u8, name.slice(), "cHRM")) { // Primary chromaticities and white point
             //std.log.err("cHRM", .{});
@@ -845,11 +919,11 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
             const xphys = try chunkReader.readIntBig(u32);
             const yphys = try chunkReader.readIntBig(u32);
             const unit = try chunkReader.readIntBig(u8);
-            //_ = xphys;
-            //_ = yphys;
-            //_ = unit;
+            _ = xphys;
+            _ = yphys;
+            _ = unit;
             //try parsePHYS(chunkData.rest());
-            std.log.info("pHYs:{}x{}:{}", .{ xphys, yphys, unit });
+            //std.log.info("pHYs:{}x{}:{}", .{ xphys, yphys, unit });
         } else if (std.mem.eql(u8, name.slice(), "sBIT")) { // Significant bits
             //var sbitdata = [4]u8{ 0, 0, 0, 0 };
             //const rest = chunkData.rest();
@@ -876,8 +950,8 @@ pub fn decodeImage(reader: anytype, alloc: std.mem.Allocator) !PNG {
             _ = s;
             //std.log.err("tIME {}-{}-{} {}:{}:{}", .{ y, m, d, h, min, s });
         } else if (std.mem.eql(u8, name.slice(), "tRNS")) { // Transparency
-            std.log.err("tRNS", .{});
-            //return error.NotImplemented;
+            try header.?.addTrns(chunkBuffer.items[4..]);
+            //std.log.err("tRNS: [{}]", .{std.fmt.fmtSliceHexUpper(chunkBuffer.items[4..])});
         } else if (std.mem.eql(u8, name.slice(), "zTXt")) { // Compressed textual data
 
             //const cd = chunkData.rest();

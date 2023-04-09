@@ -40,7 +40,7 @@ pub fn main() !void {
                         (p_exp.a != null and p_exp.a != p_act.a))
                     {
                         std.log.err("{}x{}", .{ tc.width, tc.height });
-                        std.log.err("{}", .{img.header});
+                        //std.log.err("{}", .{img.header});
                         std.log.err("[{s}][{},{}] {} != {}", .{ t.name, w, h, p_exp, p_act });
                         return error.Invalid;
                     }
