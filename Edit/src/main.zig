@@ -1,10 +1,11 @@
 const std = @import("std");
+const mked = @import("mked.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
-    var v = try arg.parseArgs(RunInfo, alloc, ArgDef);
+    try mked.run(alloc);
 }
 
 test "simple test" {

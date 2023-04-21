@@ -74,11 +74,11 @@ pub fn parseArgsImpl(
     var curList = &@field(result, info.defaultList);
     argLoop: while (args.next()) |arg| {
         if (std.mem.eql(u8, "-h", arg) or std.mem.eql(u8, arg, "--help")) {
-            printHelp(T, info);
+            try printHelp(T, info);
             result.deinit();
             return null;
         }
-        if (info.hasNextArgs) |nextFieldName| {
+        if (info.nextArgs) |nextFieldName| {
             if (std.mem.eql(u8, "--", arg)) {
                 while (args.next()) |nextArgs| {
                     var newString = std.ArrayList(u8).init(alloc);
