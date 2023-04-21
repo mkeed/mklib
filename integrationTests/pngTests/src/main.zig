@@ -18,6 +18,7 @@ pub fn main() !void {
     defer dataBuffer.deinit();
     for (pngTests.tests) |t| {
         if (t.testCase) |tc| {
+            //if (std.mem.eql(u8, "tbbn3p08.png", t.name) == false) continue;
             std.log.info("{s}", .{t.name});
             dataBuffer.clearRetainingCapacity();
             const file = try dir.openFile(t.name, .{});
