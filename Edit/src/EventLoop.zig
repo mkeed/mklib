@@ -167,7 +167,6 @@ pub const EventLoop = struct {
             for (toRemove.items) |fd| {
                 for (self.handlers.items, 0..) |item, idx| {
                     if (item.fd == fd) {
-                        item.deinit();
                         _ = self.handlers.swapRemove(idx);
                     }
                 }
