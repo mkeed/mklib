@@ -13,14 +13,16 @@ fn readExample(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResul
     return el.HandlerResult.Done;
 }
 
-fn sigusr(ctx: *anyopaque, sig: u32) el.HandlerError!el.HandlerResult {
+fn sigusr(ctx: *anyopaque, sig: u32, data: i32) el.HandlerError!el.HandlerResult {
     _ = ctx;
     _ = sig;
+    _ = data;
     return el.HandlerResult.Done;
 }
-fn sigWinch(ctx: *anyopaque, sig: u32) el.HandlerError!el.HandlerResult {
+fn sigWinch(ctx: *anyopaque, sig: u32, data: i32) el.HandlerError!el.HandlerResult {
     _ = ctx;
     _ = sig;
+    _ = data;
     return el.HandlerResult.Done;
 }
 pub fn main() !void {
@@ -34,8 +36,8 @@ pub fn main() !void {
     defer eventLoop.deinit();
 
     var sig = signal.Signal.init();
-    sig.addHandler(std.os.SIG.WINCH, &sigWinch);
-    sig.addHandler(std.os.SIG.USR1, &sigusr);
+    sig.addHandler(std.os.SIG.WINCH, .{ .ctx = &eventLoop, .func = &sigWinch });
+    sig.addHandler(std.os.SIG.USR1, .{ .ctx = &eventLoop, .func = &sigusr });
     const sfd = try sig.createSignalFd(alloc);
     defer sfd.deinit();
 

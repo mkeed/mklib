@@ -1,16 +1,19 @@
 const std = @import("std");
 const el = @import("EventLoop.zig");
 
-pub const FnHandler = *const fn (ctx: *anyopaque, sig: u32) el.HandlerError!el.HandlerResult;
-
+pub const FnHandler = *const fn (ctx: *anyopaque, sig: u32, data: i32) el.HandlerError!el.HandlerResult;
+pub const Handler = struct {
+    ctx: *anyopaque,
+    func: FnHandler,
+};
 pub const Signal = struct {
-    handlers: [std.os.linux.NSIG]?FnHandler,
+    handlers: [std.os.linux.NSIG]?Handler,
     pub fn init() Signal {
         return Signal{
-            .handlers = [1]?FnHandler{null} ** std.os.linux.NSIG,
+            .handlers = [1]?Handler{null} ** std.os.linux.NSIG,
         };
     }
-    pub fn addHandler(self: *Signal, signal: u32, handler: FnHandler) void {
+    pub fn addHandler(self: *Signal, signal: u32, handler: Handler) void {
         std.log.debug("adding signal {}", .{signal});
         if (signal < self.handlers.len) {
             self.handlers[signal] = handler;
@@ -54,7 +57,6 @@ pub const SignalFd = struct {
 
     fn readHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
         const self = @ptrCast(*SignalFd, @alignCast(@alignOf(*SignalFd), ctx));
-        _ = self;
 
         var buf: [@sizeOf(std.os.linux.signalfd_siginfo)]u8 align(@alignOf(*std.os.linux.signalfd_siginfo)) = undefined;
         const len = std.os.read(fd, buf[0..]) catch {
@@ -62,7 +64,12 @@ pub const SignalFd = struct {
         };
         if (len != buf.len) return el.HandlerResult.None;
         const siginfo = @ptrCast(*std.os.linux.signalfd_siginfo, &buf);
-        std.log.err("{}", .{siginfo.*});
+        if (siginfo.signo < self.signal.handlers.len) {
+            if (self.signal.handlers[siginfo.signo]) |handler| {
+                return handler.func(handler.ctx, siginfo.signo, siginfo.int);
+            }
+        }
+
         return el.HandlerResult.None;
     }
     pub fn getEventHandler(self: *SignalFd) el.HandlerInfo {

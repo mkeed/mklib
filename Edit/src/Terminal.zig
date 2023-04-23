@@ -1,6 +1,7 @@
 const std = @import("std");
 const display = @import("Display.zig");
-
+const signal = @import("Signal.zig");
+const el = @import("EventLoop.zig");
 const String = @import("String.zig");
 const CodePoint = String.CodePoint;
 const Face = display.Face;
@@ -85,11 +86,41 @@ pub fn resetColour(writer: anytype) !void {
 }
 
 pub const Terminal = struct {
+    alloc: std.mem.Allocator,
     stdin: std.fs.File,
     stdout: std.fs.File,
-    pub fn init(alloc: std.mem.Allocator) !Terminal {
+    signal: *signal.SignalFd,
+    pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !*Terminal {
+        var t = try alloc.create(Terminal);
+        errdefer alloc.destroy(t);
+        var stdin = std.io.getStdIn();
+        if (std.os.isatty(stdin.handle) == false) {
+            return error.Invalidtty;
+        }
+        var stdout = std.io.getStdOut();
+        var signal = Signal.Signal.init();
+        signal.addHandler(std.os.SIG.WINCH, .{ .ctx = t, .func = &sigWinchRead });
+        t.* = .{
+            .alloc = alloc,
+            .stdin = stdin,
+            .stdout = stdout,
+            .signal = try signal.createSignalFd(alloc),
+        };
+        try el.addHandler(.{
+            .fd = stdin.fd,
+            .ctx = t,
+            .read = &stdinHandleRead,
+            .err = &stdinHandleExit,
+            .exit = &stdinHandleExit,
+        });
+
+        return t;
         //
     }
+    fn stdinHandleRead(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {}
+    fn stdinHandleExit(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {}
+
+    fn sigWinchRead(ctx: *anyopaque, sig: u32, data: i32) el.HandlerError!el.HandlerResult {}
 };
 
 test {
