@@ -19,19 +19,5 @@ pub fn main() !void {
 
     var eventLoop = EventLoop.EventLoop.init(alloc);
     defer eventLoop.deinit();
-    var in = std.io.getStdIn();
-    try eventLoop.addHandler(.{
-        .fd = in.handle,
-        .ctx = &gpa,
-        .read = &readExample,
-    });
-    //
     try eventLoop.run();
-}
-
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
 }
