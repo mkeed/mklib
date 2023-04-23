@@ -84,6 +84,14 @@ pub fn resetColour(writer: anytype) !void {
     try std.fmt.format(writer, CSI ++ "0m", .{});
 }
 
+pub const Terminal = struct {
+    stdin: std.fs.File,
+    stdout: std.fs.File,
+    pub fn init(alloc: std.mem.Allocator) !Terminal {
+        //
+    }
+};
+
 test {
     var stdout = std.io.getStdOut();
     var writer = stdout.writer();

@@ -13,6 +13,11 @@ fn readExample(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResul
     return el.HandlerResult.Done;
 }
 
+fn sigusr(ctx: *anyopaque, sig: u32) el.HandlerError!el.HandlerResult {
+    _ = ctx;
+    _ = sig;
+    return el.HandlerResult.Done;
+}
 fn sigWinch(ctx: *anyopaque, sig: u32) el.HandlerError!el.HandlerResult {
     _ = ctx;
     _ = sig;
@@ -23,11 +28,14 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
+    std.log.info("Pid:{}", .{std.os.linux.getpid()});
+
     var eventLoop = el.EventLoop.init(alloc);
     defer eventLoop.deinit();
 
     var sig = signal.Signal.init();
     sig.addHandler(std.os.SIG.WINCH, &sigWinch);
+    sig.addHandler(std.os.SIG.USR1, &sigusr);
     const sfd = try sig.createSignalFd(alloc);
     defer sfd.deinit();
 
