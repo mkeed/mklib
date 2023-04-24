@@ -100,6 +100,7 @@ pub const Terminal = struct {
         var stdout = std.io.getStdOut();
         var signal = Signal.Signal.init();
         signal.addHandler(std.os.SIG.WINCH, .{ .ctx = t, .func = &sigWinchRead });
+        errdefer signal.deinit();
         t.* = .{
             .alloc = alloc,
             .stdin = stdin,
@@ -113,9 +114,14 @@ pub const Terminal = struct {
             .err = &stdinHandleExit,
             .exit = &stdinHandleExit,
         });
+        try el.addHandler(signal.getEventHandler());
 
         return t;
         //
+    }
+    pub fn deinit(self: *Terminal) void {
+        self.signal.deinit();
+        self.alloc.destroy(terminal);
     }
     fn stdinHandleRead(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {}
     fn stdinHandleExit(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {}
