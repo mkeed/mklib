@@ -6,10 +6,20 @@ const String = @import("String.zig");
 const mkc = @import("MkedCore.zig");
 const CodePoint = String.CodePoint;
 
+const altscrenEnable = "\x1b[?1049h";
+const altscrenDisable = "\x1b[?1049l";
+
+const mouseButtonEnable = "\1xb[?1002h";
+const mouseButtonDisable = "\1xb[?1002l";
+
+const mouseAnyEnable = "\1xb[?1003h";
+const mouseAnyDisable = "\1xb[?1003l";
+
 const InputHandler = struct {
     core: *mkc.MkedCore,
     stdin: std.fs.File,
     prevStdin: u32,
+    tc: std.os.termios,
     pub fn init(core: *mkc.MkedCore) !InputHandler {
         var stdin = std.io.getStdIn();
         if (std.os.isatty(stdin.handle) == false) {
@@ -17,13 +27,36 @@ const InputHandler = struct {
         }
         const prevStdin = std.os.fcntl(stdin.handle, std.os.F.GETFL, 0);
         std.os.fcntl(stdin.handle, std.os.SETFL, prevStdin | std.os.O.NONBLOCK);
+
+        const tc = try std.os.tcgetattr(stdin.handle);
+        var newtc = tc;
+        newtc.iflag &= ~(std.os.linux.BRKINT |
+            std.os.linux.ICRNL |
+            std.os.linux.INPCK |
+            std.os.linux.ISTRIP |
+            std.os.linux.IXON);
+        newtc.oflag &= ~(std.os.linux.OPOST);
+        newtc.cflag |= std.os.linux.CS8;
+        newtc.lflag &= ~(std.os.linux.ECHO | std.os.linux.ICANON | std.os.linux.IEXTEN | std.os.linux.ISIG);
+        newtc.cc[VMIN] = 1;
+        try std.os.tcsetattr(infd, .FLUSH, newtc);
+        errdefer {
+            std.os.tcsetattr(infd, .FLUSH, tc) catch {};
+        }
+        _ = try std.os.write(outfd, altModeEnable ++ mouseButtonEnable);
+        errdefer {
+            _ = std.os.write(outfd, altModeDisable ++ mouseButtonDisable) catch {};
+        }
         return InputHandler{
             .core = mkc.MkedCore,
             .stdin = stdin,
             .prevStdIn = prevStdin,
+            .tc = tc,
         };
     }
     pub fn deinit(self: *InputHandler) void {
+        _ = std.os.write(outfd, altModeDisable ++ mouseButtonDisable) catch {};
+        std.os.tcsetattr(infd, .FLUSH, self.tc) catch {};
         std.os.fcntl(self.stdin.handle, std.os.SETFL, self.prevStdin);
     }
     pub fn gethandler(self: *InputHandler) el.HandlerInfo {
