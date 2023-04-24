@@ -5,7 +5,8 @@ const el = @import("EventLoop.zig");
 const String = @import("String.zig");
 const mkc = @import("MkedCore.zig");
 const CodePoint = String.CodePoint;
-
+const App = @import("App.zig");
+const Input = @import("Terminal/Input.zig");
 const altScreenEnable = "\x1b[?1049h";
 const altScreenDisable = "\x1b[?1049l";
 
@@ -20,6 +21,8 @@ const InputHandler = struct {
     stdin: std.fs.File,
     prevStdin: usize,
     tc: std.os.termios,
+    inputQueue: std.ArrayList(App.InputEvent),
+    count: usize = 0,
     pub fn init(core: *mkc.MkedCore) !InputHandler {
         var stdin = std.io.getStdIn();
         if (std.os.isatty(stdin.handle) == false) {
@@ -50,11 +53,13 @@ const InputHandler = struct {
             .stdin = stdin,
             .prevStdin = prevStdin,
             .tc = tc,
+            .inputQueue = std.ArrayList(App.InputEvent).init(alloc),
         };
     }
     pub fn deinit(self: *InputHandler) void {
         std.os.tcsetattr(self.stdin.handle, .FLUSH, self.tc) catch {};
         _ = std.os.fcntl(self.stdin.handle, std.os.F.SETFL, self.prevStdin) catch {};
+        self.inputQueue.deinit();
     }
     pub fn getHandler(self: *InputHandler) el.HandlerInfo {
         return .{
@@ -64,9 +69,11 @@ const InputHandler = struct {
         };
     }
     fn readHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
-        _ = ctx;
+        const self = el.ctxTo(InputHander, ctx);
         _ = fd;
-        return el.HandlerResult.Done;
+        defer self.count += 1;
+
+        return if (self.count > 10) el.HandlerResult.Done else el.HandlerResult.None;
     }
 };
 

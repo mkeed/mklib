@@ -1,5 +1,9 @@
 const std = @import("std");
 
+pub fn ctxTo(comptime T:type,ctx:*anytype) *T {
+    return @ptrCast(*T,@alignCast(@AlignOf(T),ctx));
+}
+
 pub const HandlerError = error{
     GlobalFatal, //Kill everything and shutdown
     LocalFatal, //Kill just this handler and continue

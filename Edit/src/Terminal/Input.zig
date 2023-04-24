@@ -278,3 +278,64 @@ const AsciiToKeyCode = [0x80]App.InputEvent{
     .{ .keyboard = .{ .ctrl = false, .shift = false, .alt = false, .key = .Tilde } },
     .{ .keyboard = .{ .ctrl = false, .shift = false, .alt = false, .key = .Esc } },
 };
+const VMIN = 9;
+const VTIME = 17;
+
+pub fn decodeMouse(data: []const u8, len: *usize) App.InputEvent {
+    const cb = data[0];
+    const cx = data[1];
+    const cy = data[2];
+    len.* = 3;
+
+    return .{ .mouse = .{ .button = cb & 0b11, .x = cx - 32, .y = cy - 32 } };
+}
+
+pub fn read(input: []const u8, output: *std.ArrayList(App.InputEvent)) !void {
+    var idx: usize = 0;
+    inputLoop: while (idx < input.len) : (idx += 1) {
+        const val = input[idx];
+        switch (val) {
+            0x1b => {
+                idx += 1;
+                const availLength = input.len - idx;
+                if (availLength >= 2 and std.mem.eql(u8, "[M", input[idx .. idx + 2])) {
+                    idx += 2;
+                    var len: usize = 0;
+                    const mouseEv = decodeMouse(input[idx..], &len);
+                    idx += len;
+                    try output.append(mouseEv);
+                } else {
+                    for (escapeCodes) |ec| {
+                        if (availLength >= ec.seq.len) {
+                            if (std.mem.eql(
+                                u8,
+                                ec.seq,
+                                input[idx .. idx + ec.seq.len],
+                            )) {
+                                try output.append(ec.key);
+                                idx += ec.seq.len;
+                                continue :inputLoop;
+                            }
+                        }
+                    }
+
+                    if (availLength > 0) {
+                        if (input[idx] <= 0x7F) {
+                            var key = AsciiToKeyCode[input[idx]];
+                            key.keyboard.alt = true;
+                            try output.append(key);
+                        } else {
+                            try output.append(AsciiToKeyCode[0x7F]);
+                        }
+                    }
+                }
+            },
+            0...0x1a, 0x1c...0x7F => {
+                try output.append(AsciiToKeyCode[val]);
+            },
+            else => {
+                //unexpected value
+            },
+        }
+    }
+}

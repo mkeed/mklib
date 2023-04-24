@@ -20,3 +20,14 @@ pub const KeyboardEvent = struct {
     alt: bool = false,
     key: KeyCode,
 };
+
+pub const MouseEvent = struct {
+    button: u8,
+    x: isize,
+    y: isize,
+};
+
+pub const InputEvent = union(enum) {
+    keyboard: KeyboardEvent,
+    mouse: MouseEvent,
+};
