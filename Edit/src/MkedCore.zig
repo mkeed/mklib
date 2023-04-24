@@ -30,16 +30,16 @@ pub const MkedCore = struct {
     errorLog: Log.Logger,
     pub fn init(alloc: std.mem.Allocator) MkedCore {
         return MkedCore{
+            .alloc = alloc,
             .projectDir = std.fs.cwd(),
             .files = std.ArrayList(*FileInfo).init(alloc),
-            .errorLog = Log.Logger.init(alloc),
+            .errorLog = Log.Logger.init(alloc, .{}),
         };
     }
     pub fn deinit(self: *MkedCore) void {
-        for (self.files) |file| {
-            if (file) |f| {
-                f.deinit();
-            }
+        for (self.files.items) |f| {
+            f.deinit();
+            self.alloc.destroy(f);
         }
         self.files.deinit();
         self.errorLog.deinit();

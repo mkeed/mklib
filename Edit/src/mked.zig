@@ -1,5 +1,8 @@
 const std = @import("std");
 const arg = @import("ArgParse");
+const Terminal = @import("Terminal.zig").Terminal;
+const el = @import("EventLoop.zig");
+
 const MkedCore = @import("MkedCore.zig").MkedCore;
 const RunInfo = struct {
     fileList: std.ArrayList(std.ArrayList(u8)),
@@ -30,22 +33,25 @@ const ArgDef = arg.ProcInfo{
     .docs = "test",
 };
 
-pub fn run(alloc: std.mem.Allocator) !void {
-    var v = try arg.parseArgs(RunInfo, alloc, ArgDef) orelse return;
-    defer v.deinit();
-    for (v.fileList.items) |file| {
-        std.log.info("File:{s}", .{file.items});
-    }
-}
-
 pub const mked = struct {
     alloc: std.mem.Allocator,
-    core: MkedCore,
+    core: *MkedCore,
+    terminal: *Terminal,
+    pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !mked {
+        var core = try alloc.create(MkedCore);
+        errdefer alloc.destroy(core);
+        core.* = MkedCore.init(alloc);
+        errdefer core.deinit();
 
-    pub fn init(alloc: std.mem.Allocator) mked {
+        var terminal = try Terminal.init(alloc, event, core);
+
         return mked{
             .alloc = alloc,
-            .core = MkedCore.init(alloc),
+            .core = core,
+            .terminal = terminal,
         };
+    }
+    pub fn deinit(self: mked) void {
+        self.core.deinit();
     }
 };

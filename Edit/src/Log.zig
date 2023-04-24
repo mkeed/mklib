@@ -41,6 +41,6 @@ pub const Logger = struct {
         var line = LogItem.init(self.alloc, .err);
         errdefer line.deinit();
         try std.fmt.format(line.info.writer(), fmt, args);
-        try selg.logs.append(line);
+        try self.logs.append(line);
     }
 };

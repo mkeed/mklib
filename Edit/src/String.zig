@@ -24,9 +24,9 @@ pub fn CPFmt(cp: CodePoint) CodePointFormatter {
 
 pub const String = struct {
     data: std.ArrayList(u8),
-    pub fn alloc(alloc: std.mem.Allocator) String {
+    pub fn alloc(allocator: std.mem.Allocator) String {
         return String{
-            .data = std.ArrayList(u8),
+            .data = std.ArrayList(u8).init(allocator),
         };
     }
     pub fn append(self: *String, data: []const u8) !void {
@@ -50,7 +50,7 @@ pub const String = struct {
         idx: usize,
         pub fn next(self: *CodePointIter) ?CodePoint {
             if (self.idx >= self.data.len) return null;
-            const len = std.unicode.utf7ByteSequenceLength(self.data[idx]) catch {
+            const len = std.unicode.utf8ByteSequenceLength(self.data[self.idx]) catch {
                 self.idx += 1;
                 return std.unicode.replacement_character;
             };
@@ -59,7 +59,7 @@ pub const String = struct {
 
             if (self.idx + len >= self.data.len) return null;
 
-            const cp = std.unicode.utf8Decode(self.data[idx..][0..len]) catch {
+            const cp = std.unicode.utf8Decode(self.data[self.idx..][0..len]) catch {
                 return std.unicode.replacement_character;
             };
             return cp;
