@@ -14,7 +14,6 @@ pub const Signal = struct {
         };
     }
     pub fn addHandler(self: *Signal, signal: u32, handler: Handler) void {
-        std.log.debug("adding signal {}", .{signal});
         if (signal < self.handlers.len) {
             self.handlers[signal] = handler;
         }

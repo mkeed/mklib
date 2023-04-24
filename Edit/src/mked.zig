@@ -37,22 +37,40 @@ pub const mked = struct {
     alloc: std.mem.Allocator,
     core: *MkedCore,
     terminal: *Terminal,
-    pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !mked {
+    pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !*mked {
+        var self = try alloc.create(mked);
+        errdefer alloc.destroy(self);
+
         var core = try alloc.create(MkedCore);
         errdefer alloc.destroy(core);
         core.* = MkedCore.init(alloc);
         errdefer core.deinit();
-
         var terminal = try Terminal.init(alloc, event, core);
-
-        return mked{
+        self.* = mked{
             .alloc = alloc,
             .core = core,
             .terminal = terminal,
         };
+
+        try event.addPostHandler(.{ .ctx = self, .func = &postEventHandler });
+
+        return self;
     }
-    pub fn deinit(self: mked) void {
+
+    fn postEventImpl(self: *mked) !void {
+        while (self.terminal.input.inputQueue.readItem()) |item| {
+            try std.fmt.format(self.terminal.output.stdout.writer(), "Key:{}\r\n", .{item});
+        }
+    }
+
+    fn postEventHandler(ctx: *anyopaque) void {
+        const self = el.ctxTo(mked, ctx);
+        self.postEventImpl() catch {};
+    }
+
+    pub fn deinit(self: *mked) void {
         self.core.deinit();
         self.terminal.deinit();
+        self.alloc.destroy(self);
     }
 };

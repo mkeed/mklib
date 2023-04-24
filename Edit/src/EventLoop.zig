@@ -1,7 +1,7 @@
 const std = @import("std");
 
-pub fn ctxTo(comptime T:type,ctx:*anytype) *T {
-    return @ptrCast(*T,@alignCast(@AlignOf(T),ctx));
+pub fn ctxTo(comptime T: type, ctx: *anyopaque) *T {
+    return @ptrCast(*T, @alignCast(@alignOf(T), ctx));
 }
 
 pub const HandlerError = error{
@@ -112,15 +112,24 @@ pub const HandlerInfo = struct {
     }
 };
 
+pub const PostEventHandlerFn = *const fn (ctx: *anyopaque) void;
+
+pub const PostEventHandler = struct {
+    ctx: *anyopaque,
+    func: PostEventHandlerFn,
+};
+
 pub const EventLoop = struct {
     alloc: std.mem.Allocator,
     pollfds: std.ArrayList(std.os.pollfd),
     handlers: std.ArrayList(HandlerInfo),
+    postEventHandlers: std.ArrayList(PostEventHandler),
     pub fn init(alloc: std.mem.Allocator) EventLoop {
         return EventLoop{
             .alloc = alloc,
             .pollfds = std.ArrayList(std.os.pollfd).init(alloc),
             .handlers = std.ArrayList(HandlerInfo).init(alloc),
+            .postEventHandlers = std.ArrayList(PostEventHandler).init(alloc),
         };
     }
     pub fn deinit(self: EventLoop) void {
@@ -131,8 +140,13 @@ pub const EventLoop = struct {
                 std.os.close(handler.fd);
             }
         }
+        self.postEventHandlers.deinit();
         self.handlers.deinit();
         self.pollfds.deinit();
+    }
+
+    pub fn addPostHandler(self: *EventLoop, handler: PostEventHandler) !void {
+        try self.postEventHandlers.append(handler);
     }
 
     pub fn addHandler(self: *EventLoop, handler: HandlerInfo) !void {
@@ -174,6 +188,9 @@ pub const EventLoop = struct {
                         _ = self.handlers.swapRemove(idx);
                     }
                 }
+            }
+            for (self.postEventHandlers.items) |item| {
+                item.func(item.ctx);
             }
         }
     }

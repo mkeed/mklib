@@ -1,11 +1,11 @@
 const std = @import("std");
-const app = @import("../App.zig");
-const VMIN = 9;
-const VTIME = 17;
+const App = @import("../App.zig");
+const Terminal = @import("../Terminal.zig");
+pub const VMIN = 9;
 
 const TerminalCode = struct {
     seq: []const u8,
-    key: app.InputEvent,
+    key: App.InputEvent,
 };
 
 const escapeCodes = [_]TerminalCode{
@@ -278,8 +278,6 @@ const AsciiToKeyCode = [0x80]App.InputEvent{
     .{ .keyboard = .{ .ctrl = false, .shift = false, .alt = false, .key = .Tilde } },
     .{ .keyboard = .{ .ctrl = false, .shift = false, .alt = false, .key = .Esc } },
 };
-const VMIN = 9;
-const VTIME = 17;
 
 pub fn decodeMouse(data: []const u8, len: *usize) App.InputEvent {
     const cb = data[0];
@@ -290,7 +288,7 @@ pub fn decodeMouse(data: []const u8, len: *usize) App.InputEvent {
     return .{ .mouse = .{ .button = cb & 0b11, .x = cx - 32, .y = cy - 32 } };
 }
 
-pub fn read(input: []const u8, output: *std.ArrayList(App.InputEvent)) !void {
+pub fn read(input: []const u8, output: *Terminal.InputQueue) !void {
     var idx: usize = 0;
     inputLoop: while (idx < input.len) : (idx += 1) {
         const val = input[idx];
@@ -303,7 +301,7 @@ pub fn read(input: []const u8, output: *std.ArrayList(App.InputEvent)) !void {
                     var len: usize = 0;
                     const mouseEv = decodeMouse(input[idx..], &len);
                     idx += len;
-                    try output.append(mouseEv);
+                    try output.writeItem(mouseEv);
                 } else {
                     for (escapeCodes) |ec| {
                         if (availLength >= ec.seq.len) {
@@ -312,7 +310,7 @@ pub fn read(input: []const u8, output: *std.ArrayList(App.InputEvent)) !void {
                                 ec.seq,
                                 input[idx .. idx + ec.seq.len],
                             )) {
-                                try output.append(ec.key);
+                                try output.writeItem(ec.key);
                                 idx += ec.seq.len;
                                 continue :inputLoop;
                             }
@@ -323,15 +321,15 @@ pub fn read(input: []const u8, output: *std.ArrayList(App.InputEvent)) !void {
                         if (input[idx] <= 0x7F) {
                             var key = AsciiToKeyCode[input[idx]];
                             key.keyboard.alt = true;
-                            try output.append(key);
+                            try output.writeItem(key);
                         } else {
-                            try output.append(AsciiToKeyCode[0x7F]);
+                            try output.writeItem(AsciiToKeyCode[0x7F]);
                         }
                     }
                 }
             },
             0...0x1a, 0x1c...0x7F => {
-                try output.append(AsciiToKeyCode[val]);
+                try output.writeItem(AsciiToKeyCode[val]);
             },
             else => {
                 //unexpected value

@@ -15,13 +15,15 @@ const mouseButtonDisable = "\x1b[?1002l";
 
 const mouseAnyEnable = "\x1b[?1003h";
 const mouseAnyDisable = "\x1b[?1003l";
-const VMIN = 6;
+
+pub const InputQueue = std.fifo.LinearFifo(App.InputEvent, .Dynamic);
+
 const InputHandler = struct {
     core: *mkc.MkedCore,
     stdin: std.fs.File,
     prevStdin: usize,
     tc: std.os.termios,
-    inputQueue: std.ArrayList(App.InputEvent),
+    inputQueue: InputQueue,
     count: usize = 0,
     pub fn init(core: *mkc.MkedCore) !InputHandler {
         var stdin = std.io.getStdIn();
@@ -43,7 +45,7 @@ const InputHandler = struct {
         newtc.oflag &= ~(std.os.linux.OPOST);
         newtc.cflag |= std.os.linux.CS8;
         newtc.lflag &= ~(std.os.linux.ECHO | std.os.linux.ICANON | std.os.linux.IEXTEN | std.os.linux.ISIG);
-        newtc.cc[VMIN] = 1;
+        newtc.cc[Input.VMIN] = 1;
         try std.os.tcsetattr(stdin.handle, .FLUSH, newtc);
         errdefer {
             std.os.tcsetattr(stdin.handle, .FLUSH, tc) catch {};
@@ -53,7 +55,7 @@ const InputHandler = struct {
             .stdin = stdin,
             .prevStdin = prevStdin,
             .tc = tc,
-            .inputQueue = std.ArrayList(App.InputEvent).init(alloc),
+            .inputQueue = InputQueue.init(core.alloc),
         };
     }
     pub fn deinit(self: *InputHandler) void {
@@ -69,9 +71,22 @@ const InputHandler = struct {
         };
     }
     fn readHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
-        const self = el.ctxTo(InputHander, ctx);
+        const self = el.ctxTo(InputHandler, ctx);
         _ = fd;
         defer self.count += 1;
+        var buffer: [4096]u8 = undefined;
+        const len = self.stdin.read(buffer[0..]) catch |err| {
+            switch (err) {
+                error.WouldBlock => {
+                    return el.HandlerResult.None;
+                },
+                else => {
+                    return el.HandlerError.GlobalFatal;
+                },
+            }
+        };
+
+        Input.read(buffer[0..len], &self.inputQueue) catch return el.HandlerResult.Done;
 
         return if (self.count > 10) el.HandlerResult.Done else el.HandlerResult.None;
     }
