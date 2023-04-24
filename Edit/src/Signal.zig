@@ -41,12 +41,13 @@ pub const Signal = struct {
 pub const SignalFd = struct {
     fd: std.os.fd_t,
     signal: Signal,
-    fn exitHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
-        const self = @ptrCast(*SignalFd, @alignCast(@alignOf(*SignalFd), ctx));
-        self.deinit();
-        _ = fd;
-        return .None;
-    }
+    //fn exitHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
+
+    //const self = @ptrCast(*SignalFd, @alignCast(@alignOf(*SignalFd), ctx));
+    //self.deinit();
+    //_ = fd;
+    //return .None;
+    //}
 
     fn readHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
         const self = @ptrCast(*SignalFd, @alignCast(@alignOf(*SignalFd), ctx));
@@ -70,8 +71,8 @@ pub const SignalFd = struct {
             .fd = self.fd,
             .ctx = self,
             .read = readHandler,
-            .err = exitHandler,
-            .exit = exitHandler,
+            //.err = exitHandler,
+            //.exit = exitHandler,
         };
     }
     pub fn deinit(self: *SignalFd) void {

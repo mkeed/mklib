@@ -37,19 +37,21 @@ pub const mked = struct {
     alloc: std.mem.Allocator,
     core: *MkedCore,
     terminal: *Terminal,
+    event: *el.EventLoop,
     pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !*mked {
         var self = try alloc.create(mked);
         errdefer alloc.destroy(self);
 
         var core = try alloc.create(MkedCore);
         errdefer alloc.destroy(core);
-        core.* = MkedCore.init(alloc);
+        core.* = MkedCore.init(alloc, self);
         errdefer core.deinit();
         var terminal = try Terminal.init(alloc, event, core);
         self.* = mked{
             .alloc = alloc,
             .core = core,
             .terminal = terminal,
+            .event = event,
         };
 
         try event.addPostHandler(.{ .ctx = self, .func = &postEventHandler });
@@ -61,6 +63,7 @@ pub const mked = struct {
         while (self.terminal.input.inputQueue.readItem()) |item| {
             try std.fmt.format(self.terminal.output.stdout.writer(), "Key:{}\r\n", .{item});
         }
+        try self.terminal.output.draw();
     }
 
     fn postEventHandler(ctx: *anyopaque) void {

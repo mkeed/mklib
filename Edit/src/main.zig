@@ -19,7 +19,10 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    var eventLoop = el.EventLoop.init(alloc);
+    var file = try std.fs.cwd().createFile("ErrorFile.txt", .{ .truncate = false });
+    defer file.close();
+
+    var eventLoop = el.EventLoop.init(alloc, file);
     defer eventLoop.deinit();
 
     var editor = try mked.mked.init(alloc, &eventLoop);

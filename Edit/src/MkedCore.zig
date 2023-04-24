@@ -1,6 +1,6 @@
 const std = @import("std");
 const Log = @import("Log.zig");
-
+const mked = @import("mked.zig");
 const FileInfo = struct {
     isWrite: bool,
     name: std.ArrayList(u8),
@@ -28,12 +28,14 @@ pub const MkedCore = struct {
     projectDir: std.fs.Dir,
     files: std.ArrayList(*FileInfo),
     errorLog: Log.Logger,
-    pub fn init(alloc: std.mem.Allocator) MkedCore {
+    core: *mked.mked,
+    pub fn init(alloc: std.mem.Allocator, core: *mked.mked) MkedCore {
         return MkedCore{
             .alloc = alloc,
             .projectDir = std.fs.cwd(),
             .files = std.ArrayList(*FileInfo).init(alloc),
             .errorLog = Log.Logger.init(alloc, .{}),
+            .core = core,
         };
     }
     pub fn deinit(self: *MkedCore) void {
@@ -59,6 +61,9 @@ pub const MkedCore = struct {
         try fileInfo.data.ensureTotalCapacity(meta.size());
         try file.reader.readAllArrayList(&fileInfo.data, meta.size());
         return fileInfo;
+    }
+    pub fn close(self: *MkedCore) void {
+        self.core.event.close = .Finished;
     }
     //pub fn saveFile(
 };

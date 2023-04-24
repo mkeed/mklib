@@ -7,6 +7,7 @@ const mkc = @import("MkedCore.zig");
 const CodePoint = String.CodePoint;
 const App = @import("App.zig");
 const Input = @import("Terminal/Input.zig");
+const Output = @import("Terminal/Output.zig");
 const altScreenEnable = "\x1b[?1049h";
 const altScreenDisable = "\x1b[?1049l";
 
@@ -88,17 +89,24 @@ const InputHandler = struct {
 
         Input.read(buffer[0..len], &self.inputQueue) catch return el.HandlerResult.Done;
 
-        return if (self.count > 10) el.HandlerResult.Done else el.HandlerResult.None;
+        if (self.count > 10) {
+            self.core.close();
+        }
+        return el.HandlerResult.None;
     }
 };
 
 const OutputHandler = struct {
     core: *mkc.MkedCore,
     stdout: std.fs.File,
-    pub fn init(core: *mkc.MkedCore) !OutputHandler {
+    drawBuffer: std.ArrayList(u8),
+    terminalSize: Output.Pos,
+    pub fn init(core: *mkc.MkedCore, alloc: std.mem.Allocator) !OutputHandler {
         var self = OutputHandler{
             .core = core,
             .stdout = std.io.getStdOut(),
+            .drawBuffer = std.ArrayList(u8).init(alloc),
+            .terminalSize = .{ .x = 0, .y = 0 },
         };
         _ = try std.os.write(self.stdout.handle, altScreenEnable ++ mouseButtonEnable);
 
@@ -106,6 +114,18 @@ const OutputHandler = struct {
     }
     pub fn deinit(self: OutputHandler) void {
         _ = std.os.write(self.stdout.handle, altScreenDisable ++ mouseButtonDisable) catch {};
+        self.drawBuffer.deinit();
+    }
+
+    pub fn draw(self: *OutputHandler) !void {
+        self.drawBuffer.clearRetainingCapacity();
+        var writer = self.drawBuffer.writer();
+        try Output.write(.{
+            .screenSize = self.terminalSize,
+            .cursorPos = .{ .x = 1, .y = 10 },
+            .menuItems = &.{ "File", "Edit", "Options", "Buffers", "Tools", "Help" },
+        }, writer);
+        _ = try self.stdout.write(self.drawBuffer.items);
     }
 };
 
@@ -113,7 +133,6 @@ pub const Terminal = struct {
     alloc: std.mem.Allocator,
     input: *InputHandler,
     output: *OutputHandler,
-
     signal: sig.SignalFd,
     pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop, core: *mkc.MkedCore) !*Terminal {
         var t = try alloc.create(Terminal);
@@ -125,7 +144,7 @@ pub const Terminal = struct {
             errdefer input.deinit();
             var output = try alloc.create(OutputHandler);
             errdefer alloc.destroy(output);
-            output.* = try OutputHandler.init(core);
+            output.* = try OutputHandler.init(core, alloc);
             errdefer output.deinit();
             var signal = sig.Signal.init();
             signal.addHandler(std.os.SIG.WINCH, .{ .ctx = t, .func = &sigWinchRead });
@@ -137,10 +156,10 @@ pub const Terminal = struct {
             };
         }
         errdefer t.deinit();
-
+        t.updateWinSize();
         try event.addHandler(t.input.getHandler());
 
-        //try event.addHandler(t.signal.getEventHandler());
+        try event.addHandler(t.signal.getEventHandler());
 
         return t;
         //
@@ -154,8 +173,16 @@ pub const Terminal = struct {
         self.alloc.destroy(self);
     }
 
+    fn updateWinSize(self: *Terminal) void {
+        var ws: std.os.system.winsize = undefined;
+        if (std.os.system.ioctl(self.input.stdin.handle, std.os.system.T.IOCGWINSZ, @ptrToInt(&ws)) == 0) {
+            self.output.terminalSize = .{ .x = ws.ws_col, .y = ws.ws_col };
+        }
+    }
+
     fn sigWinchRead(ctx: *anyopaque, signal: u32, data: i32) el.HandlerError!el.HandlerResult {
-        _ = ctx;
+        const self = el.ctxTo(Terminal, ctx);
+        self.updateWinSize();
         _ = signal;
         _ = data;
         return el.HandlerResult.None;
