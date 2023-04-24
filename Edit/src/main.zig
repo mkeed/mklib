@@ -38,7 +38,7 @@ pub fn main() !void {
     var sig = signal.Signal.init();
     sig.addHandler(std.os.SIG.WINCH, .{ .ctx = &eventLoop, .func = &sigWinch });
     sig.addHandler(std.os.SIG.USR1, .{ .ctx = &eventLoop, .func = &sigusr });
-    const sfd = try sig.createSignalFd(alloc);
+    var sfd = try sig.createSignalFd();
     defer sfd.deinit();
 
     const handler = sfd.getEventHandler();

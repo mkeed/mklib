@@ -19,10 +19,7 @@ pub const Signal = struct {
             self.handlers[signal] = handler;
         }
     }
-    pub fn createSignalFd(self: Signal, alloc: std.mem.Allocator) !*SignalFd {
-        var result = try alloc.create(SignalFd);
-        errdefer alloc.destroy(result);
-
+    pub fn createSignalFd(self: Signal) !SignalFd {
         var sigset = std.os.empty_sigset;
         for (self.handlers, 0..) |handler, idx| {
             if (handler != null) {
@@ -35,17 +32,14 @@ pub const Signal = struct {
             std.os.sigprocmask(std.os.SIG.BLOCK, &oldset, null);
         }
         const fd = try std.os.signalfd(-1, &sigset, std.os.linux.SFD.NONBLOCK | std.os.linux.SFD.CLOEXEC);
-        result.* = SignalFd{
-            .alloc = alloc,
+        return SignalFd{
             .fd = fd,
             .signal = self,
         };
-        return result;
     }
 };
 
 pub const SignalFd = struct {
-    alloc: std.mem.Allocator,
     fd: std.os.fd_t,
     signal: Signal,
     fn exitHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
@@ -83,6 +77,5 @@ pub const SignalFd = struct {
     }
     pub fn deinit(self: *SignalFd) void {
         std.os.close(self.fd);
-        self.alloc.destroy(self);
     }
 };
