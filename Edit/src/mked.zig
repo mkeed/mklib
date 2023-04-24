@@ -53,5 +53,6 @@ pub const mked = struct {
     }
     pub fn deinit(self: mked) void {
         self.core.deinit();
+        self.terminal.deinit();
     }
 };

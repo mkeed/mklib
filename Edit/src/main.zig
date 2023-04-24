@@ -19,8 +19,6 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    std.log.info("Pid:{}", .{std.os.linux.getpid()});
-
     var eventLoop = el.EventLoop.init(alloc);
     defer eventLoop.deinit();
 

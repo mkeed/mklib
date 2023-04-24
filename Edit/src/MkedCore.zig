@@ -43,8 +43,8 @@ pub const MkedCore = struct {
         }
         self.files.deinit();
         self.errorLog.deinit();
+        self.alloc.destroy(self);
     }
-
     pub fn openFileRead(self: *MkedCore, name: []const u8) !*FileInfo {
         var file = self.projectDir.openFile(name, .{}) catch |err| {
             self.errorLog.err("Failed To Open File with error({})", .{err});

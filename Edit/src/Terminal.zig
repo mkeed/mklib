@@ -66,7 +66,7 @@ const InputHandler = struct {
     fn readHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
         _ = ctx;
         _ = fd;
-        return el.HandlerResult.None;
+        return el.HandlerResult.Done;
     }
 };
 
@@ -118,12 +118,16 @@ pub const Terminal = struct {
 
         try event.addHandler(t.input.getHandler());
 
-        try event.addHandler(t.signal.getEventHandler());
+        //try event.addHandler(t.signal.getEventHandler());
 
         return t;
         //
     }
     pub fn deinit(self: *Terminal) void {
+        self.input.deinit();
+        self.alloc.destroy(self.input);
+        self.output.deinit();
+        self.alloc.destroy(self.output);
         self.signal.deinit();
         self.alloc.destroy(self);
     }
