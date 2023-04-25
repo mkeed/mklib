@@ -6,7 +6,7 @@ const Display = @import("Display.zig");
 const MkedCore = @import("MkedCore.zig").MkedCore;
 const App = @import("App.zig");
 const Buffer = @import("Buffer.zig").Buffer;
-
+const Frame = @import("Frame.zig").Frame;
 const RunInfo = struct {
     fileList: std.ArrayList(std.ArrayList(u8)),
 
@@ -47,6 +47,8 @@ pub const mked = struct {
     cursorPos: Display.Pos,
     inputMessage: std.ArrayList(u8),
     buffers: std.ArrayList(*Buffer),
+    frames: std.ArrayList(*Frame),
+    currentFrame: *Frame,
     pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !*mked {
         var self = try alloc.create(mked);
         errdefer alloc.destroy(self);
