@@ -2,7 +2,7 @@ const std = @import("std");
 const arg = @import("ArgParse");
 const Terminal = @import("Terminal.zig").Terminal;
 const el = @import("EventLoop.zig");
-
+const Display = @import("Display.zig");
 const MkedCore = @import("MkedCore.zig").MkedCore;
 const RunInfo = struct {
     fileList: std.ArrayList(std.ArrayList(u8)),
@@ -54,21 +54,21 @@ pub const mked = struct {
             .event = event,
         };
 
-        try event.addPostHandler(.{ .ctx = self, .func = &postEventHandler });
+        try event.addPreHandler(.{ .ctx = self, .func = &preEventHandler });
 
         return self;
     }
 
-    fn postEventImpl(self: *mked) !void {
+    pub fn preEventImpl(self: *mked) !void {
         while (self.terminal.input.inputQueue.readItem()) |item| {
-            try std.fmt.format(self.terminal.output.stdout.writer(), "Key:{}\r\n", .{item});
+            _ = item;
         }
-        try self.terminal.output.draw();
+        try self.terminal.output.draw(Display.disp);
     }
 
-    fn postEventHandler(ctx: *anyopaque) void {
+    fn preEventHandler(ctx: *anyopaque) void {
         const self = el.ctxTo(mked, ctx);
-        self.postEventImpl() catch {};
+        self.preEventImpl() catch {};
     }
 
     pub fn deinit(self: *mked) void {

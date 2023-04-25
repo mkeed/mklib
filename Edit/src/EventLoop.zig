@@ -112,11 +112,11 @@ pub const HandlerInfo = struct {
     }
 };
 
-pub const PostEventHandlerFn = *const fn (ctx: *anyopaque) void;
+pub const PreEventHandlerFn = *const fn (ctx: *anyopaque) void;
 
-pub const PostEventHandler = struct {
+pub const PreEventHandler = struct {
     ctx: *anyopaque,
-    func: PostEventHandlerFn,
+    func: PreEventHandlerFn,
 };
 
 pub const CloseOption = enum {
@@ -127,7 +127,7 @@ pub const EventLoop = struct {
     alloc: std.mem.Allocator,
     pollfds: std.ArrayList(std.os.pollfd),
     handlers: std.ArrayList(HandlerInfo),
-    postEventHandlers: std.ArrayList(PostEventHandler),
+    preEventHandlers: std.ArrayList(PreEventHandler),
     errFile: std.fs.File,
     close: ?CloseOption = null,
     pub fn init(alloc: std.mem.Allocator, errFile: std.fs.File) EventLoop {
@@ -135,7 +135,7 @@ pub const EventLoop = struct {
             .alloc = alloc,
             .pollfds = std.ArrayList(std.os.pollfd).init(alloc),
             .handlers = std.ArrayList(HandlerInfo).init(alloc),
-            .postEventHandlers = std.ArrayList(PostEventHandler).init(alloc),
+            .preEventHandlers = std.ArrayList(PreEventHandler).init(alloc),
             .errFile = errFile,
         };
     }
@@ -145,13 +145,13 @@ pub const EventLoop = struct {
                 _ = func(handler.ctx, handler.fd) catch {};
             }
         }
-        self.postEventHandlers.deinit();
+        self.preEventHandlers.deinit();
         self.handlers.deinit();
         self.pollfds.deinit();
     }
 
-    pub fn addPostHandler(self: *EventLoop, handler: PostEventHandler) !void {
-        try self.postEventHandlers.append(handler);
+    pub fn addPreHandler(self: *EventLoop, handler: PreEventHandler) !void {
+        try self.preEventHandlers.append(handler);
     }
 
     pub fn addHandler(self: *EventLoop, handler: HandlerInfo) !void {
@@ -168,6 +168,9 @@ pub const EventLoop = struct {
                         break :mainLoop;
                     },
                 }
+            }
+            for (self.preEventHandlers.items) |item| {
+                item.func(item.ctx);
             }
             try self.pollfds.ensureTotalCapacity(self.handlers.items.len);
             self.pollfds.clearRetainingCapacity();
@@ -205,9 +208,6 @@ pub const EventLoop = struct {
                         _ = self.handlers.swapRemove(idx);
                     }
                 }
-            }
-            for (self.postEventHandlers.items) |item| {
-                item.func(item.ctx);
             }
         }
     }

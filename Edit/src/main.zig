@@ -27,6 +27,5 @@ pub fn main() !void {
 
     var editor = try mked.mked.init(alloc, &eventLoop);
     defer editor.deinit();
-
     try eventLoop.run();
 }

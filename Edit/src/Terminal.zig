@@ -1,5 +1,5 @@
 const std = @import("std");
-const display = @import("Display.zig");
+const Display = @import("Display.zig");
 const sig = @import("Signal.zig");
 const el = @import("EventLoop.zig");
 const String = @import("String.zig");
@@ -100,7 +100,7 @@ const OutputHandler = struct {
     core: *mkc.MkedCore,
     stdout: std.fs.File,
     drawBuffer: std.ArrayList(u8),
-    terminalSize: Output.Pos,
+    terminalSize: Display.Pos,
     pub fn init(core: *mkc.MkedCore, alloc: std.mem.Allocator) !OutputHandler {
         var self = OutputHandler{
             .core = core,
@@ -117,14 +117,12 @@ const OutputHandler = struct {
         self.drawBuffer.deinit();
     }
 
-    pub fn draw(self: *OutputHandler) !void {
+    pub fn draw(self: *OutputHandler, disp: Display.ScreenDisplay) !void {
         self.drawBuffer.clearRetainingCapacity();
         var writer = self.drawBuffer.writer();
-        try Output.write(.{
-            .screenSize = self.terminalSize,
-            .cursorPos = .{ .x = 1, .y = 10 },
-            .menuItems = &.{ "File", "Edit", "Options", "Buffers", "Tools", "Help" },
-        }, writer);
+        var d = disp;
+        d.screenSize = self.terminalSize;
+        try Output.write(d, writer);
         _ = try self.stdout.write(self.drawBuffer.items);
     }
 };
@@ -176,7 +174,7 @@ pub const Terminal = struct {
     fn updateWinSize(self: *Terminal) void {
         var ws: std.os.system.winsize = undefined;
         if (std.os.system.ioctl(self.input.stdin.handle, std.os.system.T.IOCGWINSZ, @ptrToInt(&ws)) == 0) {
-            self.output.terminalSize = .{ .x = ws.ws_col, .y = ws.ws_col };
+            self.output.terminalSize = .{ .x = ws.ws_col, .y = ws.ws_row };
         }
     }
 

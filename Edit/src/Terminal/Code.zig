@@ -63,18 +63,3 @@ pub fn getBlockVertical(size: u3) CodePoint {
 pub fn getBlockHorizontal(size: u3) CodePoint {
     return horizontalBlockChars[size];
 }
-
-fn setColor(writer: anytype, face: Face) !void {
-    try std.fmt.format(writer, SetFG ++ "2;{};{};{}m" ++ SetBG ++ "2;{};{};{}m", .{
-        face.fg.red,
-        face.fg.green,
-        face.fg.blue,
-        face.bg.red,
-        face.bg.green,
-        face.bg.blue,
-    });
-}
-
-pub fn resetColour(writer: anytype) !void {
-    try std.fmt.format(writer, CSI ++ "0m", .{});
-}
