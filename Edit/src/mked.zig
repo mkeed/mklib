@@ -5,6 +5,8 @@ const el = @import("EventLoop.zig");
 const Display = @import("Display.zig");
 const MkedCore = @import("MkedCore.zig").MkedCore;
 const App = @import("App.zig");
+const Buffer = @import("Buffer.zig").Buffer;
+
 const RunInfo = struct {
     fileList: std.ArrayList(std.ArrayList(u8)),
 
@@ -34,6 +36,9 @@ const ArgDef = arg.ProcInfo{
     .docs = "test",
 };
 
+pub const alice = @embedFile("alice.txt");
+pub const frankenstein = @embedFile("Frankenstein.txt");
+
 pub const mked = struct {
     alloc: std.mem.Allocator,
     core: *MkedCore,
@@ -41,6 +46,7 @@ pub const mked = struct {
     event: *el.EventLoop,
     cursorPos: Display.Pos,
     inputMessage: std.ArrayList(u8),
+    buffers: std.ArrayList(*Buffer),
     pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !*mked {
         var self = try alloc.create(mked);
         errdefer alloc.destroy(self);
@@ -60,7 +66,11 @@ pub const mked = struct {
                 .y = 1,
             },
             .inputMessage = std.ArrayList(u8).init(alloc),
+            .buffers = std.ArrayList(*Buffer).init(alloc),
         };
+
+        try self.buffers.append(try Buffer.initFromMem(alloc, frankenstein));
+        try self.buffers.append(try Buffer.initFromMem(alloc, alice));
 
         try event.addPreHandler(.{ .ctx = self, .func = &preEventHandler });
 
@@ -120,10 +130,30 @@ pub const mked = struct {
                 },
             }
         }
-        var disp = Display.disp;
-        disp.cmdline = self.inputMessage.items;
-        disp.cursorPos = self.cursorPos;
-        try self.terminal.output.draw(disp);
+        var arena = std.heap.ArenaAllocator.init(self.alloc);
+        defer arena.deinit();
+        const aalloc = arena.allocator();
+        const bufferWidth: isize = 100;
+        var buffers = try aalloc.alloc(Display.BufferInfo, self.buffers.items.len);
+        for (self.buffers.items, 0..) |buf, idx| {
+            const pos = @intCast(isize, idx * bufferWidth);
+            const len = std.math.min(
+                bufferWidth,
+                self.terminal.output.terminalSize.x - pos,
+            );
+            buffers[idx] = .{
+                .pos = .{ .x = pos, .y = 1 },
+                .buffer = try buf.display(aalloc, self.terminal.output.terminalSize.y, len),
+            };
+        }
+
+        try self.terminal.output.draw(.{
+            .screenSize = self.terminal.output.terminalSize,
+            .cursorPos = self.cursorPos,
+            .menuItems = &.{ "File", "Edit", "Options", "Buffers" },
+            .cmdline = self.inputMessage.items,
+            .buffers = buffers,
+        });
     }
 
     fn preEventHandler(ctx: *anyopaque) void {
@@ -135,6 +165,10 @@ pub const mked = struct {
         self.core.deinit();
         self.terminal.deinit();
         self.inputMessage.deinit();
+        for (self.buffers.items) |buffer| {
+            buffer.deinit();
+        }
+        self.buffers.deinit();
         self.alloc.destroy(self);
     }
 };

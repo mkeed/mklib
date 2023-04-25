@@ -34,12 +34,14 @@ pub fn write(screenInfo: Display.ScreenDisplay, writer: anytype) !void {
     try writer.writeByteNTimes(' ', @intCast(usize, screenInfo.screenSize.x) - lineCount);
     try resetColour(writer);
 
-    for (screenInfo.lines) |line| {
-        try std.fmt.format(writer, Cursor.move, .{
-            line.pos.y + 1,
-            line.pos.x,
-        });
-        try std.fmt.format(writer, "{:<3}{s}", .{ line.lineNum, line.text });
+    for (screenInfo.buffers) |buffer| {
+        for (buffer.buffer.lines, 0..) |line, idy| {
+            try std.fmt.format(writer, Cursor.move, .{
+                buffer.pos.y + @intCast(isize, idy),
+                buffer.pos.x,
+            });
+            try std.fmt.format(writer, "{s}", .{line});
+        }
     }
 
     try std.fmt.format(writer, Cursor.move, .{ screenInfo.screenSize.y, screenInfo.screenSize.x - @intCast(isize, screenInfo.cmdline.len) });

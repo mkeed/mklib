@@ -115,9 +115,7 @@ const OutputHandler = struct {
     pub fn draw(self: *OutputHandler, disp: Display.ScreenDisplay) !void {
         self.drawBuffer.clearRetainingCapacity();
         var writer = self.drawBuffer.writer();
-        var d = disp;
-        d.screenSize = self.terminalSize;
-        try Output.write(d, writer);
+        try Output.write(disp, writer);
         _ = try self.stdout.write(self.drawBuffer.items);
     }
 };

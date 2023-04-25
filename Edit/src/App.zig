@@ -152,7 +152,10 @@ pub const KeyboardEvent = struct {
         try std.fmt.format(writer, "{s}", .{self.key.toString()});
     }
     pub fn equal(self: KeyboardEvent, other: KeyboardEvent) bool {
-        return self.ctrl == other.ctrl and self.alt == other.alt and self.shift == self.shift and self.key == other.key;
+        return self.ctrl == other.ctrl and
+            self.alt == other.alt and
+            self.shift == other.shift and
+            self.key == other.key;
     }
 };
 
