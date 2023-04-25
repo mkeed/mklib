@@ -1,5 +1,5 @@
 const std = @import("std");
-
+pub const Input = @import("App/Input.zig");
 // zig fmt: off
 pub const KeyCode = enum {
     A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
@@ -151,6 +151,9 @@ pub const KeyboardEvent = struct {
         }
         try std.fmt.format(writer, "{s}", .{self.key.toString()});
     }
+    pub fn equal(self: KeyboardEvent, other: KeyboardEvent) bool {
+        return self.ctrl == other.ctrl and self.alt == other.alt and self.shift == self.shift and self.key == other.key;
+    }
 };
 
 pub const MouseEvent = struct {
@@ -178,7 +181,7 @@ pub const InputEvent = union(enum) {
 pub const Movement = union(enum) {
     Char: isize,
     Line: isize,
-    Words: isize,
+    Word: isize,
 };
 
 pub const Command = union(enum) {

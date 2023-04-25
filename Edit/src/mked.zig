@@ -74,6 +74,30 @@ pub const mked = struct {
                     if (key.key == .F12) {
                         self.core.close();
                     }
+                    for (App.Input.inputs) |input| {
+                        switch (input.input) {
+                            .keyboard => |k| {
+                                if (k.equal(key)) {
+                                    switch (input.command) {
+                                        .movement => |m| {
+                                            switch (m) {
+                                                .Char => |c| {
+                                                    self.cursorPos.x += c;
+                                                },
+                                                .Line => |l| {
+                                                    self.cursorPos.y += l;
+                                                },
+                                                .Word => |w| {
+                                                    self.cursorPos.x += w;
+                                                },
+                                            }
+                                        },
+                                    }
+                                }
+                            },
+                            else => {},
+                        }
+                    }
                     self.inputMessage.clearRetainingCapacity();
                     const writer = self.inputMessage.writer();
                     try std.fmt.format(writer, "{}", .{key});
@@ -87,11 +111,18 @@ pub const mked = struct {
                     if (m.meta) mods[1] = 'm';
 
                     try std.fmt.format(writer, "{?} @ {}x{}[{s}]", .{ m.button, m.x, m.y, mods });
+                    if (m.button) |button| {
+                        if (button == .Left) self.cursorPos = .{
+                            .x = m.x,
+                            .y = m.y,
+                        };
+                    }
                 },
             }
         }
         var disp = Display.disp;
         disp.cmdline = self.inputMessage.items;
+        disp.cursorPos = self.cursorPos;
         try self.terminal.output.draw(disp);
     }
 

@@ -6,10 +6,10 @@ pub const InputMap = struct {
 };
 
 pub const inputs = [_]InputMap{
-    .{ .input = .{ .keyboard = .{ .keyCode = .Up } }, .command = .{ .movement = .{ .Line = -1 } } },
-    .{ .input = .{ .keyboard = .{ .keyCode = .Down } }, .command = .{ .movement = .{ .Line = 1 } } },
-    .{ .input = .{ .keyboard = .{ .keyCode = .Left } }, .command = .{ .movement = .{ .Char = -1 } } },
-    .{ .input = .{ .keyboard = .{ .keyCode = .Right } }, .command = .{ .movement = .{ .Char = 1 } } },
-    .{ .input = .{ .keyboard = .{ .alt = true, .keyCode = .Left } }, .command = .{ .movement = .{ .Word = -1 } } },
-    .{ .input = .{ .keyboard = .{ .alt = true, .keyCode = .Right } }, .command = .{ .movement = .{ .Word = 1 } } },
+    .{ .input = .{ .keyboard = .{ .key = .Up } }, .command = .{ .movement = .{ .Line = -1 } } },
+    .{ .input = .{ .keyboard = .{ .key = .Down } }, .command = .{ .movement = .{ .Line = 1 } } },
+    .{ .input = .{ .keyboard = .{ .key = .Left } }, .command = .{ .movement = .{ .Char = -1 } } },
+    .{ .input = .{ .keyboard = .{ .key = .Right } }, .command = .{ .movement = .{ .Char = 1 } } },
+    .{ .input = .{ .keyboard = .{ .alt = true, .key = .Left } }, .command = .{ .movement = .{ .Word = -1 } } },
+    .{ .input = .{ .keyboard = .{ .alt = true, .key = .Right } }, .command = .{ .movement = .{ .Word = 1 } } },
 };
