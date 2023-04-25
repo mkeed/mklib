@@ -162,15 +162,15 @@ pub const EventLoop = struct {
         var toRemove = std.ArrayList(std.os.fd_t).init(self.alloc);
         defer toRemove.deinit();
         mainLoop: while (self.handlers.items.len > 0) {
+            for (self.preEventHandlers.items) |item| {
+                item.func(item.ctx);
+            }
             if (self.close) |close| {
                 switch (close) {
                     .Finished => {
                         break :mainLoop;
                     },
                 }
-            }
-            for (self.preEventHandlers.items) |item| {
-                item.func(item.ctx);
             }
             try self.pollfds.ensureTotalCapacity(self.handlers.items.len);
             self.pollfds.clearRetainingCapacity();

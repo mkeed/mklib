@@ -25,7 +25,6 @@ const InputHandler = struct {
     prevStdin: usize,
     tc: std.os.termios,
     inputQueue: InputQueue,
-    count: usize = 0,
     pub fn init(core: *mkc.MkedCore) !InputHandler {
         var stdin = std.io.getStdIn();
         if (std.os.isatty(stdin.handle) == false) {
@@ -74,7 +73,6 @@ const InputHandler = struct {
     fn readHandler(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResult {
         const self = el.ctxTo(InputHandler, ctx);
         _ = fd;
-        defer self.count += 1;
         var buffer: [4096]u8 = undefined;
         const len = self.stdin.read(buffer[0..]) catch |err| {
             switch (err) {
@@ -89,9 +87,6 @@ const InputHandler = struct {
 
         Input.read(buffer[0..len], &self.inputQueue) catch return el.HandlerResult.Done;
 
-        if (self.count > 10) {
-            self.core.close();
-        }
         return el.HandlerResult.None;
     }
 };

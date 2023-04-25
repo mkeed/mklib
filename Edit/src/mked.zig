@@ -61,7 +61,14 @@ pub const mked = struct {
 
     pub fn preEventImpl(self: *mked) !void {
         while (self.terminal.input.inputQueue.readItem()) |item| {
-            _ = item;
+            switch (item) {
+                .keyboard => |key| {
+                    if (key.key == .F12) {
+                        self.core.close();
+                    }
+                },
+                .mouse => {},
+            }
         }
         try self.terminal.output.draw(Display.disp);
     }
