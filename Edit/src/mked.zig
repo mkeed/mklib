@@ -4,6 +4,7 @@ const Terminal = @import("Terminal.zig").Terminal;
 const el = @import("EventLoop.zig");
 const Display = @import("Display.zig");
 const MkedCore = @import("MkedCore.zig").MkedCore;
+const App = @import("App.zig");
 const RunInfo = struct {
     fileList: std.ArrayList(std.ArrayList(u8)),
 
@@ -38,6 +39,8 @@ pub const mked = struct {
     core: *MkedCore,
     terminal: *Terminal,
     event: *el.EventLoop,
+    cursorPos: Display.Pos,
+    inputMessage: std.ArrayList(u8),
     pub fn init(alloc: std.mem.Allocator, event: *el.EventLoop) !*mked {
         var self = try alloc.create(mked);
         errdefer alloc.destroy(self);
@@ -52,6 +55,11 @@ pub const mked = struct {
             .core = core,
             .terminal = terminal,
             .event = event,
+            .cursorPos = .{
+                .x = 1,
+                .y = 1,
+            },
+            .inputMessage = std.ArrayList(u8).init(alloc),
         };
 
         try event.addPreHandler(.{ .ctx = self, .func = &preEventHandler });
@@ -66,11 +74,25 @@ pub const mked = struct {
                     if (key.key == .F12) {
                         self.core.close();
                     }
+                    self.inputMessage.clearRetainingCapacity();
+                    const writer = self.inputMessage.writer();
+                    try std.fmt.format(writer, "{}", .{key});
                 },
-                .mouse => {},
+                .mouse => |m| {
+                    self.inputMessage.clearRetainingCapacity();
+                    const writer = self.inputMessage.writer();
+                    var mods = [2]u8{ ' ', ' ' };
+
+                    if (m.ctrl) mods[0] = 'c';
+                    if (m.meta) mods[1] = 'm';
+
+                    try std.fmt.format(writer, "{?} @ {}x{}[{s}]", .{ m.button, m.x, m.y, mods });
+                },
             }
         }
-        try self.terminal.output.draw(Display.disp);
+        var disp = Display.disp;
+        disp.cmdline = self.inputMessage.items;
+        try self.terminal.output.draw(disp);
     }
 
     fn preEventHandler(ctx: *anyopaque) void {
@@ -81,6 +103,7 @@ pub const mked = struct {
     pub fn deinit(self: *mked) void {
         self.core.deinit();
         self.terminal.deinit();
+        self.inputMessage.deinit();
         self.alloc.destroy(self);
     }
 };

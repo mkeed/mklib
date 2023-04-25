@@ -103,12 +103,12 @@ const OutputHandler = struct {
             .drawBuffer = std.ArrayList(u8).init(alloc),
             .terminalSize = .{ .x = 0, .y = 0 },
         };
-        _ = try std.os.write(self.stdout.handle, altScreenEnable ++ mouseButtonEnable);
+        _ = try std.os.write(self.stdout.handle, altScreenEnable ++ mouseAnyEnable);
 
         return self;
     }
     pub fn deinit(self: OutputHandler) void {
-        _ = std.os.write(self.stdout.handle, altScreenDisable ++ mouseButtonDisable) catch {};
+        _ = std.os.write(self.stdout.handle, altScreenDisable ++ mouseAnyDisable) catch {};
         self.drawBuffer.deinit();
     }
 

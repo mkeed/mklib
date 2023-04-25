@@ -284,8 +284,19 @@ pub fn decodeMouse(data: []const u8, len: *usize) App.InputEvent {
     const cx = data[1];
     const cy = data[2];
     len.* = 3;
-
-    return .{ .mouse = .{ .button = cb & 0b11, .x = cx - 32, .y = cy - 32 } };
+    const shift = 0 != (cb & 0b100);
+    const meta = 0 != (cb & 0b1000);
+    const ctrl = 0 != (cb & 0b10000);
+    const button: ?App.MouseEvent.Button = switch (cb & 0b11000011) {
+        0 => .Left,
+        1 => .Middle,
+        2 => .Right,
+        3 => .Release,
+        (64 + 0) => .ScrollUp,
+        (64 + 1) => .ScrollDn,
+        else => null,
+    };
+    return .{ .mouse = .{ .button = button, .x = cx - 32, .y = cy - 32, .ctrl = ctrl, .meta = meta, .shift = shift } };
 }
 
 pub fn read(input: []const u8, output: *Terminal.InputQueue) !void {

@@ -1,3 +1,5 @@
+const std = @import("std");
+
 // zig fmt: off
 pub const KeyCode = enum {
     A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
@@ -135,12 +137,37 @@ pub const KeyboardEvent = struct {
     shift: bool = false,
     alt: bool = false,
     key: KeyCode,
+    pub fn format(self: KeyboardEvent, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+        if (self.ctrl) {
+            try std.fmt.format(writer, "C-", .{});
+        }
+        if (self.alt) {
+            try std.fmt.format(writer, "M-", .{});
+        }
+        if (self.shift) {
+            try std.fmt.format(writer, "S-", .{});
+        }
+        try std.fmt.format(writer, "{s}", .{self.key.toString()});
+    }
 };
 
 pub const MouseEvent = struct {
-    button: u8,
+    pub const Button = enum(u8) {
+        Left,
+        Middle,
+        Right,
+        Release,
+        ScrollUp,
+        ScrollDn,
+    };
+    button: ?Button,
     x: isize,
     y: isize,
+    ctrl: bool,
+    meta: bool,
+    shift: bool,
 };
 
 pub const InputEvent = union(enum) {

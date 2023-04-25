@@ -15,7 +15,7 @@ pub const Cursor = struct {
 };
 
 pub const Screen = struct {
-    pub const clear = "\x1b[2H";
+    pub const clear = "\x1b[2J";
 };
 
 pub fn write(screenInfo: Display.ScreenDisplay, writer: anytype) !void {
