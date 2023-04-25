@@ -147,3 +147,13 @@ pub const InputEvent = union(enum) {
     keyboard: KeyboardEvent,
     mouse: MouseEvent,
 };
+
+pub const Movement = union(enum) {
+    Char: isize,
+    Line: isize,
+    Words: isize,
+};
+
+pub const Command = union(enum) {
+    movement: Movement,
+};
