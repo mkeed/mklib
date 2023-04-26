@@ -1,5 +1,5 @@
 const std = @import("std");
-const Display = @import("Display.zig");
+const Render = @import("Render.zig");
 const sig = @import("Signal.zig");
 const el = @import("EventLoop.zig");
 const String = @import("String.zig");
@@ -95,7 +95,7 @@ const OutputHandler = struct {
     core: *mkc.MkedCore,
     stdout: std.fs.File,
     drawBuffer: std.ArrayList(u8),
-    terminalSize: Display.Pos,
+    terminalSize: Render.Pos,
     pub fn init(core: *mkc.MkedCore, alloc: std.mem.Allocator) !OutputHandler {
         var self = OutputHandler{
             .core = core,
@@ -112,7 +112,7 @@ const OutputHandler = struct {
         self.drawBuffer.deinit();
     }
 
-    pub fn draw(self: *OutputHandler, disp: Display.ScreenDisplay) !void {
+    pub fn draw(self: *OutputHandler, disp: Render.RenderInfo) !void {
         self.drawBuffer.clearRetainingCapacity();
         var writer = self.drawBuffer.writer();
         try Output.write(disp, writer);

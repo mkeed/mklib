@@ -11,11 +11,12 @@ pub const BufferView = struct {
     buffer: *Buffer.Buffer,
     cursorSet: *Buffer.CursorSet,
     line: LinePos,
-    pub fn init(buffer: *Buffer) !BufferView {
+    pub fn init(buffer: *Buffer.Buffer) !BufferView {
         const cursorSet = try buffer.createCursorSet();
         return BufferView{
             .buffer = buffer,
             .cursorSet = cursorSet,
+            .line = .{ .Top = 0 },
         };
     }
 };

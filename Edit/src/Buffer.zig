@@ -1,5 +1,4 @@
 const std = @import("std");
-const Display = @import("Display.zig");
 const Line = std.ArrayList(u8);
 
 pub const Cursor = struct {
@@ -10,6 +9,17 @@ pub const Cursor = struct {
 pub const CursorSet = struct {
     buffer: *Buffer,
     cursors: std.ArrayList(Cursor),
+    pub fn init(alloc: std.mem.Allocator, buffer: *Buffer) !CursorSet {
+        var cursors = std.ArrayList(Cursor).init(alloc);
+        try cursors.append(.{ .row = 0, .col = 0 });
+        return .{
+            .buffer = buffer,
+            .cursors = cursors,
+        };
+    }
+    pub fn deinit(self: CursorSet) void {
+        self.cursors.deinit();
+    }
 };
 
 pub const Buffer = struct {
@@ -24,6 +34,7 @@ pub const Buffer = struct {
             .alloc = alloc,
             .lines = std.ArrayList(Line).init(alloc),
             .topLine = 0,
+            .cursorSets = std.ArrayList(*CursorSet).init(alloc),
         };
 
         return self;
@@ -44,31 +55,31 @@ pub const Buffer = struct {
         return try Buffer.initFromReader(alloc, fbs.reader());
     }
 
-    pub fn display(
-        self: *Buffer,
-        arena: std.mem.Allocator,
-        bufferLines: isize,
-        bufferWidth: isize,
-    ) !Display.BufferDisplay {
-        const numLines = std.math.min(self.lines.items.len - self.topLine, bufferLines);
-        var lines = try arena.alloc([]const u8, numLines);
-        for (lines, 0..) |*l, idx| {
-            var lineData = self.lines.items[idx + self.topLine].items;
-            const len = std.math.min(lineData.len, bufferWidth);
-            const line = try std.fmt.allocPrint(arena, "{s}", .{std.fmt.fmtSliceEscapeLower(lineData[0..len])});
-            l.* = line;
-        }
-        return Display.BufferDisplay{
-            .lines = lines,
-            .modeLine = "Example ModeLine",
-        };
+    pub fn createInitBuffer(alloc: std.mem.Allocator) !*Buffer {
+        const welcomeMessage =
+            \\Welcome to mked
+            \\Open a file to begin
+        ;
+        return Buffer.initFromMem(alloc, welcomeMessage);
     }
 
+    pub fn createCursorSet(self: *Buffer) !*CursorSet {
+        var set = try self.alloc.create(CursorSet);
+        errdefer self.alloc.destroy(set);
+        set.* = try CursorSet.init(self.alloc, self);
+        errdefer set.deinit();
+        try self.cursorSets.append(set);
+        return set;
+    }
     pub fn deinit(self: *Buffer) void {
         for (self.lines.items) |line| {
             line.deinit();
         }
         self.lines.deinit();
+        for (self.cursorSets.items) |item| {
+            item.deinit();
+        }
+        self.cursorSets.deinit();
         self.alloc.destroy(self);
     }
 };

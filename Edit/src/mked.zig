@@ -2,10 +2,11 @@ const std = @import("std");
 const arg = @import("ArgParse");
 const Terminal = @import("Terminal.zig").Terminal;
 const el = @import("EventLoop.zig");
-const Display = @import("Display.zig");
+const Render = @import("Render.zig");
 const MkedCore = @import("MkedCore.zig").MkedCore;
 const App = @import("App.zig");
 const Buffer = @import("Buffer.zig").Buffer;
+const BufferView = @import("BufferView.zig").BufferView;
 const Frame = @import("Frame.zig").Frame;
 const RunInfo = struct {
     fileList: std.ArrayList(std.ArrayList(u8)),
@@ -44,7 +45,7 @@ pub const mked = struct {
     core: *MkedCore,
     terminal: *Terminal,
     event: *el.EventLoop,
-    cursorPos: Display.Pos,
+    cursorPos: Render.Pos,
     inputMessage: std.ArrayList(u8),
     buffers: std.ArrayList(*Buffer),
     frames: std.ArrayList(*Frame),
@@ -58,6 +59,18 @@ pub const mked = struct {
         core.* = MkedCore.init(alloc, self);
         errdefer core.deinit();
         var terminal = try Terminal.init(alloc, event, core);
+        errdefer terminal.deinit();
+
+        var buffers = std.ArrayList(*Buffer).init(alloc);
+        errdefer buffers.deinit();
+        var initBuffer = try Buffer.createInitBuffer(alloc);
+        errdefer initBuffer.deinit();
+        var frames = std.ArrayList(*Frame).init(alloc);
+        errdefer frames.deinit();
+
+        var initFrame = try alloc.create(Frame);
+        errdefer alloc.destroy(initFrame);
+        initFrame.* = try Frame.init(alloc, try BufferView.init(initBuffer));
         self.* = mked{
             .alloc = alloc,
             .core = core,
@@ -68,7 +81,9 @@ pub const mked = struct {
                 .y = 1,
             },
             .inputMessage = std.ArrayList(u8).init(alloc),
-            .buffers = std.ArrayList(*Buffer).init(alloc),
+            .buffers = buffers,
+            .frames = frames,
+            .currentFrame = initFrame,
         };
 
         try self.buffers.append(try Buffer.initFromMem(alloc, frankenstein));
@@ -132,30 +147,30 @@ pub const mked = struct {
                 },
             }
         }
-        var arena = std.heap.ArenaAllocator.init(self.alloc);
-        defer arena.deinit();
-        const aalloc = arena.allocator();
-        const bufferWidth: isize = 100;
-        var buffers = try aalloc.alloc(Display.BufferInfo, self.buffers.items.len);
-        for (self.buffers.items, 0..) |buf, idx| {
-            const pos = @intCast(isize, idx * bufferWidth);
-            const len = std.math.min(
-                bufferWidth,
-                self.terminal.output.terminalSize.x - pos,
-            );
-            buffers[idx] = .{
-                .pos = .{ .x = pos, .y = 1 },
-                .buffer = try buf.display(aalloc, self.terminal.output.terminalSize.y, len),
-            };
-        }
+        // var arena = std.heap.ArenaAllocator.init(self.alloc);
+        // defer arena.deinit();
+        // const aalloc = arena.allocator();
+        // const bufferWidth: isize = 100;
+        // var buffers = try aalloc.alloc(Display.BufferInfo, self.buffers.items.len);
+        // for (self.buffers.items, 0..) |buf, idx| {
+        //     const pos = @intCast(isize, idx * bufferWidth);
+        //     const len = std.math.min(
+        //         bufferWidth,
+        //         self.terminal.output.terminalSize.x - pos,
+        //     );
+        //     buffers[idx] = .{
+        //         .pos = .{ .x = pos, .y = 1 },
+        //         .buffer = try buf.display(aalloc, self.terminal.output.terminalSize.y, len),
+        //     };
+        // }
 
-        try self.terminal.output.draw(.{
-            .screenSize = self.terminal.output.terminalSize,
-            .cursorPos = self.cursorPos,
-            .menuItems = &.{ "File", "Edit", "Options", "Buffers" },
-            .cmdline = self.inputMessage.items,
-            .buffers = buffers,
-        });
+        // try self.terminal.output.draw(.{
+        //     .screenSize = self.terminal.output.terminalSize,
+        //     .cursorPos = self.cursorPos,
+        //     .menuItems = &.{ "File", "Edit", "Options", "Buffers" },
+        //     .cmdline = self.inputMessage.items,
+        //     .buffers = buffers,
+        // });
     }
 
     fn preEventHandler(ctx: *anyopaque) void {

@@ -1,8 +1,8 @@
 const std = @import("std");
-const Display = @import("Display.zig");
 const Layout = @import("Layout.zig");
 const LayoutError = error{} || std.mem.Allocator.Error;
-
+const Render = @import("Render.zig");
+const BufferView = @import("BufferView.zig").BufferView;
 const SplitFrame = struct {
     pub fn init(alloc: std.mem.Allocator) SplitFrame {
         return .{
@@ -22,7 +22,7 @@ const SplitFrame = struct {
 const Display = union(enum) {
     vertical: SplitFrame,
     horizontal: SplitFrame,
-    display: *BufferView,
+    display: BufferView,
     pub fn deinit(self: Display) void {
         switch (self) {
             .horizontal, .vertical => |d| {
@@ -30,7 +30,7 @@ const Display = union(enum) {
             },
         }
     }
-    pub fn layout(self: Display, size: Pos, pos: Pos, list: *std.ArrayList(Frame.BufferLayout)) LayoutError!void {
+    pub fn layout(self: Display, size: Render.Pos, pos: Render.Pos, list: *std.ArrayList(Frame.BufferLayout)) LayoutError!void {
         switch (self) {
             .display => |d| {
                 try list.append(.{
@@ -40,12 +40,15 @@ const Display = union(enum) {
                 });
             },
             .vertical => |v| {
-                const layout = Layout.WeightedLayout(SplitFrame.SplitDisplay){
+                const layoutComp = Layout.WeightedLayout(SplitFrame.SplitDisplay){
                     .items = v.displays.items,
                 };
-                //var iter = layout.iter
+                _ = layoutComp;
+                //var iter = layoutComp.iter
             },
-            .horizontal => |h| {},
+            .horizontal => |h| {
+                _ = h;
+            },
         }
     }
 };
@@ -54,7 +57,7 @@ pub const Frame = struct {
     alloc: std.mem.Allocator,
     displays: std.ArrayList(*Display),
     topLevel: *Display,
-    pub fn init(alloc: std.mem.Allocator, buffer: *BufferView) !Frame {
+    pub fn init(alloc: std.mem.Allocator, buffer: BufferView) !Frame {
         var topLevel = try alloc.create(Display);
         errdefer alloc.destroy(topLevel);
         topLevel.* = .{
@@ -81,19 +84,26 @@ pub const Frame = struct {
         size: Display.Pos,
         buffer: *BufferView,
     };
-    pub fn layout(self: Frame, windowSize: *Display.Pos, arena: std.mem.Allocator) []BufferLayout {
+    pub fn layout(self: Frame, windowSize: Display.Pos, arena: std.mem.Allocator) []BufferLayout {
+        _ = self;
+        _ = windowSize;
         var list = std.ArrayList(BufferLayout).init(arena);
+        return list.item;
     }
+
+    //pub fn render(self: Frame, windowSize: Display.Pos, arena: std.mem.Allocator) RenderInfo {
+    //_ =
+    //}
 };
 
-const disp = Display{
-    .vertical = .{
-        .splits = &.{
-            .{ .weight = 50, .display = disp2 },
-            .{ .weight = 50, .display = disp3 },
-        },
-    },
-};
+//const disp = Display{
+//    .vertical = .{
+//        .splits = &.{
+//            .{ .weight = 50, .display = disp2 },
+//            .{ .weight = 50, .display = disp3 },
+//        },
+//    },
+//};
 
 // --------------------------------------------------------------------------------
 // |                                    |                                          |
