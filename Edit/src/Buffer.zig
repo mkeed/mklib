@@ -2,10 +2,21 @@ const std = @import("std");
 const Display = @import("Display.zig");
 const Line = std.ArrayList(u8);
 
+pub const Cursor = struct {
+    row: usize,
+    col: usize,
+};
+
+pub const CursorSet = struct {
+    buffer: *Buffer,
+    cursors: std.ArrayList(Cursor),
+};
+
 pub const Buffer = struct {
     alloc: std.mem.Allocator,
     lines: std.ArrayList(Line),
     topLine: usize,
+    cursorSets: std.ArrayList(*CursorSet),
     pub fn init(alloc: std.mem.Allocator) !*Buffer {
         var self = try alloc.create(Buffer);
         errdefer alloc.destroy(self);
