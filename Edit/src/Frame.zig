@@ -91,9 +91,11 @@ pub const Frame = struct {
         return list.item;
     }
 
-    //pub fn render(self: Frame, windowSize: Display.Pos, arena: std.mem.Allocator) RenderInfo {
-    //_ =
-    //}
+    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) RenderInfo {
+        const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
+        const menus = &.{ "File", "Edit", "Options", "Buffers" };
+        //var layouts =
+    }
 };
 
 //const disp = Display{
