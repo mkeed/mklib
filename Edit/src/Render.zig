@@ -34,5 +34,5 @@ pub const Window = struct {
 pub const RenderInfo = struct {
     title: []const u8,
     menus: []const Menu,
-    buffer: Window,
+    buffer: []Window,
 };
