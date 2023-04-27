@@ -56,7 +56,7 @@ const Display = union(enum) {
 pub const Frame = struct {
     alloc: std.mem.Allocator,
     displays: std.ArrayList(*Display),
-    topLevel: *Display,
+    top_level: *Display,
     pub fn init(alloc: std.mem.Allocator, buffer: BufferView) !Frame {
         var topLevel = try alloc.create(Display);
         errdefer alloc.destroy(topLevel);
@@ -84,17 +84,11 @@ pub const Frame = struct {
         size: Display.Pos,
         buffer: *BufferView,
     };
-    pub fn layout(self: Frame, windowSize: Display.Pos, arena: std.mem.Allocator) []BufferLayout {
-        _ = self;
-        _ = windowSize;
-        var list = std.ArrayList(BufferLayout).init(arena);
-        return list.item;
-    }
-
-    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) RenderInfo {
+    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) Render.RenderInfo {
         const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
         const menus = &.{ "File", "Edit", "Options", "Buffers" };
-        //var layouts =
+        var layouts = std.ArrayList(BufferLayout).init(arena);
+        self.topLevel.layout(&layouts);
     }
 };
 

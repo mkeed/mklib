@@ -127,16 +127,16 @@ pub const EventLoop = struct {
     alloc: std.mem.Allocator,
     pollfds: std.ArrayList(std.os.pollfd),
     handlers: std.ArrayList(HandlerInfo),
-    preEventHandlers: std.ArrayList(PreEventHandler),
-    errFile: std.fs.File,
+    pre_event_handlers: std.ArrayList(PreEventHandler),
+    err_file: std.fs.File,
     close: ?CloseOption = null,
-    pub fn init(alloc: std.mem.Allocator, errFile: std.fs.File) EventLoop {
+    pub fn init(alloc: std.mem.Allocator, err_file: std.fs.File) EventLoop {
         return EventLoop{
             .alloc = alloc,
             .pollfds = std.ArrayList(std.os.pollfd).init(alloc),
             .handlers = std.ArrayList(HandlerInfo).init(alloc),
-            .preEventHandlers = std.ArrayList(PreEventHandler).init(alloc),
-            .errFile = errFile,
+            .pre_event_handlers = std.ArrayList(PreEventHandler).init(alloc),
+            .err_file = err_file,
         };
     }
     pub fn deinit(self: EventLoop) void {
@@ -145,13 +145,13 @@ pub const EventLoop = struct {
                 _ = func(handler.ctx, handler.fd) catch {};
             }
         }
-        self.preEventHandlers.deinit();
+        self.pre_event_handlers.deinit();
         self.handlers.deinit();
         self.pollfds.deinit();
     }
 
     pub fn addPreHandler(self: *EventLoop, handler: PreEventHandler) !void {
-        try self.preEventHandlers.append(handler);
+        try self.pre_event_handlers.append(handler);
     }
 
     pub fn addHandler(self: *EventLoop, handler: HandlerInfo) !void {
@@ -162,7 +162,7 @@ pub const EventLoop = struct {
         var toRemove = std.ArrayList(std.os.fd_t).init(self.alloc);
         defer toRemove.deinit();
         mainLoop: while (self.handlers.items.len > 0) {
-            for (self.preEventHandlers.items) |item| {
+            for (self.pre_event_handlers.items) |item| {
                 item.func(item.ctx);
             }
             if (self.close) |close| {
@@ -175,21 +175,21 @@ pub const EventLoop = struct {
             try self.pollfds.ensureTotalCapacity(self.handlers.items.len);
             self.pollfds.clearRetainingCapacity();
             for (self.handlers.items) |handler| {
-                std.fmt.format(self.errFile.writer(), "adding poll {}\n", .{handler.fd}) catch {};
+                std.fmt.format(self.err_file.writer(), "adding poll {}\n", .{handler.fd}) catch {};
                 try self.pollfds.append(handler.pollfd());
             }
-            std.fmt.format(self.errFile.writer(), "Poll {} items\n", .{self.pollfds.items.len}) catch {};
+            std.fmt.format(self.err_file.writer(), "Poll {} items\n", .{self.pollfds.items.len}) catch {};
             const num = std.os.poll(self.pollfds.items, -1) catch |err| {
                 std.log.err("System Failed: {}", .{err});
                 break :mainLoop;
             };
-            std.fmt.format(self.errFile.writer(), "Poll  returned {} items\n", .{num}) catch {};
+            std.fmt.format(self.err_file.writer(), "Poll  returned {} items\n", .{num}) catch {};
             if (num == 0) {
                 continue :mainLoop;
             }
             for (self.pollfds.items, 0..) |pollfd, idx| {
                 if (pollfd.revents != 0) {
-                    std.fmt.format(self.errFile.writer(), "Results :{x} {}\n", .{ pollfd.revents, pollfd.fd }) catch {};
+                    std.fmt.format(self.err_file.writer(), "Results :{x} {}\n", .{ pollfd.revents, pollfd.fd }) catch {};
                     switch (self.handlers.items[idx].handleEvents(pollfd.revents)) {
                         .Close => {
                             try toRemove.append(pollfd.fd);
@@ -202,7 +202,7 @@ pub const EventLoop = struct {
                 }
             }
             for (toRemove.items) |fd| {
-                std.fmt.format(self.errFile.writer(), "Removing fd:{}\n", .{fd}) catch {};
+                std.fmt.format(self.err_file.writer(), "Removing fd:{}\n", .{fd}) catch {};
                 for (self.handlers.items, 0..) |item, idx| {
                     if (item.fd == fd) {
                         _ = self.handlers.swapRemove(idx);

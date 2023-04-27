@@ -9,13 +9,13 @@ pub const LinePos = union(enum) {
 
 pub const BufferView = struct {
     buffer: *Buffer.Buffer,
-    cursorSet: *Buffer.CursorSet,
+    cursor_set: *Buffer.CursorSet,
     line: LinePos,
     pub fn init(buffer: *Buffer.Buffer) !BufferView {
-        const cursorSet = try buffer.createCursorSet();
+        const cursor_set = try buffer.createCursorSet();
         return BufferView{
             .buffer = buffer,
-            .cursorSet = cursorSet,
+            .cursor_set = cursorSet,
             .line = .{ .Top = 0 },
         };
     }

@@ -25,16 +25,16 @@ pub const CursorSet = struct {
 pub const Buffer = struct {
     alloc: std.mem.Allocator,
     lines: std.ArrayList(Line),
-    topLine: usize,
-    cursorSets: std.ArrayList(*CursorSet),
+    top_line: usize,
+    cursor_sets: std.ArrayList(*CursorSet),
     pub fn init(alloc: std.mem.Allocator) !*Buffer {
         var self = try alloc.create(Buffer);
         errdefer alloc.destroy(self);
         self.* = Buffer{
             .alloc = alloc,
             .lines = std.ArrayList(Line).init(alloc),
-            .topLine = 0,
-            .cursorSets = std.ArrayList(*CursorSet).init(alloc),
+            .top_line = 0,
+            .cursor_sets = std.ArrayList(*CursorSet).init(alloc),
         };
 
         return self;
@@ -68,7 +68,7 @@ pub const Buffer = struct {
         errdefer self.alloc.destroy(set);
         set.* = try CursorSet.init(self.alloc, self);
         errdefer set.deinit();
-        try self.cursorSets.append(set);
+        try self.cursor_sets.append(set);
         return set;
     }
     pub fn deinit(self: *Buffer) void {
@@ -76,10 +76,10 @@ pub const Buffer = struct {
             line.deinit();
         }
         self.lines.deinit();
-        for (self.cursorSets.items) |item| {
+        for (self.cursor_sets.items) |item| {
             item.deinit();
         }
-        self.cursorSets.deinit();
+        self.cursor_sets.deinit();
         self.alloc.destroy(self);
     }
 };
