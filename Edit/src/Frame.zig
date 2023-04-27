@@ -58,18 +58,18 @@ pub const Frame = struct {
     displays: std.ArrayList(*Display),
     top_level: *Display,
     pub fn init(alloc: std.mem.Allocator, buffer: BufferView) !Frame {
-        var topLevel = try alloc.create(Display);
-        errdefer alloc.destroy(topLevel);
-        topLevel.* = .{
+        var top_level = try alloc.create(Display);
+        errdefer alloc.destroy(top_level);
+        top_level.* = .{
             .display = buffer,
         };
         var displays = std.ArrayList(*Display).init(alloc);
         errdefer displays.deinit();
-        try displays.append(topLevel);
+        try displays.append(top_level);
         return .{
             .alloc = alloc,
             .displays = displays,
-            .topLevel = topLevel,
+            .top_level = top_level,
         };
     }
     pub fn deinit(self: Frame) void {
@@ -84,12 +84,12 @@ pub const Frame = struct {
         size: Display.Pos,
         buffer: *BufferView,
     };
-    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) Render.RenderInfo {
-        const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
-        const menus = &.{ "File", "Edit", "Options", "Buffers" };
-        var layouts = std.ArrayList(BufferLayout).init(arena);
-        self.topLevel.layout(&layouts);
-    }
+    // pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) Render.RenderInfo {
+    //     const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
+    //     const menus = &.{ "File", "Edit", "Options", "Buffers" };
+    //     var layouts = std.ArrayList(BufferLayout).init(arena);
+    //     self.topLevel.layout(&layouts);
+    // }
 };
 
 //const disp = Display{

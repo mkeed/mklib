@@ -15,7 +15,7 @@ pub const BufferView = struct {
         const cursor_set = try buffer.createCursorSet();
         return BufferView{
             .buffer = buffer,
-            .cursor_set = cursorSet,
+            .cursor_set = cursor_set,
             .line = .{ .Top = 0 },
         };
     }
