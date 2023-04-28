@@ -20,12 +20,55 @@ const Posix = enum { Upper, Lower, Alpha, Alnum, Digit, XDigit, Punct, Blank, Sp
 
 const Special = enum { NewLine, CarriageReturn, Tab, VerticalTab, FormFeed };
 
+const Control = enum { GroupStart, PassiveGroupStart, GroupEnd, GroupOr, RangeStart, RangeEnd, RangeNotStart };
+
+const Quantifier = enum { ZeroOrMore, OneOrMore, ZeroOrOne };
+
+const Look = enum { PositiveLookAhead, NegativeLookAhead, PositiveLookBehind, NegativeLookBehind };
+
 const Token = union(enum) {
     anchor: Anchor,
     class: Class,
     posix: Posix,
     special: Special,
+    control: Control,
+    quantifier: Quantifier,
+    look: Look,
     char: u8,
+    escape: u8,
+    pub fn format(self: Token, _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        switch (self) {
+            .anchor => |a| {
+                try std.fmt.format(writer, "Anchor:{}", .{a});
+            },
+            .class => |a| {
+                try std.fmt.format(writer, "Class:{}", .{a});
+            },
+            .posix => |a| {
+                try std.fmt.format(writer, "Posix:{}", .{a});
+            },
+            .special => |a| {
+                try std.fmt.format(writer, "Special:{}", .{a});
+            },
+            .char, .escape => |a| {
+                try std.fmt.format(writer, "Char:{c}", .{a});
+            },
+            .look => |a| {
+                try std.fmt.format(writer, "Look:{}", .{a});
+            },
+            .control => |a| {
+                try std.fmt.format(writer, "Control:{}", .{a});
+            },
+            .quantifier => |a| {
+                try std.fmt.format(writer, "Quantifier:{}", .{a});
+            },
+        }
+    }
+};
+
+const TokenInfo = struct {
+    token: Token,
+    val: []const u8,
 };
 
 const Matcher = union(enum) {
@@ -92,30 +135,60 @@ const Matches = [_]TokenMatch{
     strMatch("\\t", .{ .special = .Tab }),
     strMatch("\\v", .{ .special = .VerticalTab }),
     strMatch("\\f", .{ .special = .FormFeed }),
+    strMatch("(", .{ .control = .GroupStart }),
+    strMatch("(?:", .{ .control = .PassiveGroupStart }),
+    strMatch(")", .{ .control = .GroupEnd }),
+    strMatch("|", .{ .control = .GroupOr }),
+
+    strMatch("[", .{ .control = .RangeStart }),
+    strMatch("]", .{ .control = .RangeEnd }),
+    strMatch("[^", .{ .control = .RangeNotStart }),
+
+    strMatch("*", .{ .quantifier = .ZeroOrMore }),
+    strMatch("+", .{ .quantifier = .OneOrMore }),
+    strMatch("?", .{ .quantifier = .ZeroOrOne }),
+
+    strMatch("(?=", .{ .look = .PositiveLookAhead }),
+    strMatch("(?!", .{ .look = .NegativeLookAhead }),
+    strMatch("(?<=", .{ .look = .PositiveLookBehind }),
+    strMatch("(?<!", .{ .look = .NegativeLookBehind }),
 };
 
 pub fn parse(pattern: []const u8, alloc: std.mem.Allocator) !Regex {
     var reg = Regex.init(alloc);
     errdefer reg.deinit();
 
-    var tokens = std.ArrayList(Token).init(alloc);
+    var tokens = std.ArrayList(TokenInfo).init(alloc);
     defer tokens.deinit();
 
     var idx: usize = 0;
-    outerLoop: while (idx < pattern.len) {
+    while (idx < pattern.len) {
+        var maxLen: usize = 0;
+        var token: ?Token = null;
         for (Matches) |m| {
             if (m.match.match(pattern[idx..])) |len| {
-                try tokens.append(m.token);
-                idx += len;
-                continue :outerLoop;
+                if (len > maxLen) {
+                    maxLen = len;
+                    token = m.token;
+                }
             }
         }
-        try tokens.append(.{ .char = pattern[idx] });
-        idx += 1;
+        if (token) |t| {
+            try tokens.append(.{ .token = t, .val = pattern[idx..][0..maxLen] });
+            idx += maxLen;
+        } else {
+            if (pattern[idx] == '\\') {
+                try tokens.append(.{ .token = .{ .char = pattern[idx + 1] }, .val = pattern[idx..][0..2] });
+                idx += 2;
+            } else {
+                try tokens.append(.{ .token = .{ .char = pattern[idx] }, .val = pattern[idx..][0..1] });
+                idx += 1;
+            }
+        }
     }
 
     for (tokens.items) |token| {
-        std.log.info("Token:[{}]", .{token});
+        std.log.info("Token:[{}]:[{s}]", .{ token.token, token.val });
     }
 
     return reg;
