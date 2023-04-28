@@ -65,12 +65,14 @@ pub const mked = struct {
         errdefer buffers.deinit();
         var initBuffer = try Buffer.createInitBuffer(alloc);
         errdefer initBuffer.deinit();
+        try buffers.append(initBuffer);
         var frames = std.ArrayList(*Frame).init(alloc);
         errdefer frames.deinit();
 
         var initFrame = try alloc.create(Frame);
         errdefer alloc.destroy(initFrame);
         initFrame.* = try Frame.init(alloc, try BufferView.init(initBuffer));
+        try frames.append(initFrame);
         self.* = mked{
             .alloc = alloc,
             .core = core,
@@ -185,6 +187,11 @@ pub const mked = struct {
         for (self.buffers.items) |buffer| {
             buffer.deinit();
         }
+        for (self.frames.items) |frame| {
+            frame.deinit();
+            self.alloc.destroy(frame);
+        }
+        self.frames.deinit();
         self.buffers.deinit();
         self.alloc.destroy(self);
     }

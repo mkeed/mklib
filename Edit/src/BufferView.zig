@@ -19,4 +19,7 @@ pub const BufferView = struct {
             .line = .{ .Top = 0 },
         };
     }
+    pub fn deinit(self: BufferView) void {
+        self.buffer.clearCursorSet(self.cursor_set);
+    }
 };

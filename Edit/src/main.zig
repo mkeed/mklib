@@ -15,7 +15,7 @@ fn readExample(ctx: *anyopaque, fd: std.os.fd_t) el.HandlerError!el.HandlerResul
 }
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 10 }){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 

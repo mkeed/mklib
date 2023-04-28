@@ -28,6 +28,7 @@ const Display = union(enum) {
             .horizontal, .vertical => |d| {
                 d.deinit();
             },
+            else => {},
         }
     }
     pub fn layout(self: Display, size: Render.Pos, pos: Render.Pos, list: *std.ArrayList(Frame.BufferLayout)) LayoutError!void {

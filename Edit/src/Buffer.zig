@@ -71,6 +71,16 @@ pub const Buffer = struct {
         try self.cursor_sets.append(set);
         return set;
     }
+    pub fn clearCursorSet(self: *Buffer, set: *CursorSet) void {
+        for (self.cursor_sets.items, 0..) |item, idx| {
+            if (item == set) {
+                _ = self.cursor_sets.swapRemove(idx);
+                break;
+            }
+        }
+        set.deinit();
+        self.alloc.destroy(set);
+    }
     pub fn deinit(self: *Buffer) void {
         for (self.lines.items) |line| {
             line.deinit();
@@ -78,6 +88,7 @@ pub const Buffer = struct {
         self.lines.deinit();
         for (self.cursor_sets.items) |item| {
             item.deinit();
+            self.alloc.destroy(item);
         }
         self.cursor_sets.deinit();
         self.alloc.destroy(self);
