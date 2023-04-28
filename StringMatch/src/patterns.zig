@@ -15,6 +15,16 @@ pub const Pattern = struct {
     }
 };
 
+fn asString(object: std.json.ObjectMap, name: []const u8) ?[]const u8 {
+    if (object.get(name)) |match| {
+        switch (match) {
+            .String => |s| return s,
+            else => return null,
+        }
+    }
+    return null;
+}
+
 pub fn getPatterns(alloc: std.mem.Allocator) !std.ArrayList(Pattern) {
     const fileName = "src/Zig.tmLanguage.json";
     var file = try std.fs.cwd().openFile(fileName, .{});
@@ -25,7 +35,7 @@ pub fn getPatterns(alloc: std.mem.Allocator) !std.ArrayList(Pattern) {
     var parser = std.json.Parser.init(alloc, false);
     defer parser.deinit();
 
-    var patterns = std.ArrayList(std.ArrayList(u8)).init(alloc);
+    var patterns = std.ArrayList(Pattern).init(alloc);
     errdefer patterns.deinit();
     errdefer {
         for (patterns.items) |item| {
@@ -53,17 +63,13 @@ pub fn getPatterns(alloc: std.mem.Allocator) !std.ArrayList(Pattern) {
         for (arr.items) |item| {
             switch (item) {
                 .Object => |om| {
-                    if (om.get("match")) |match| {
-                        switch (match) {
-                            .String => |s| {
-                                var newString = std.ArrayList(u8).init(alloc);
-                                errdefer newString.deinit();
-                                try newString.appendSlice(s);
-                                try patterns.append(newString);
-                            },
-                            else => continue,
-                        }
-                    }
+                    var newString = Pattern.init(alloc);
+                    errdefer newString.deinit();
+                    const match = asString(om, "match") orelse continue;
+                    const name = asString(om, "name") orelse continue;
+                    try newString.name.appendSlice(name);
+                    try newString.pattern.appendSlice(match);
+                    try patterns.append(newString);
                 },
                 else => continue,
             }

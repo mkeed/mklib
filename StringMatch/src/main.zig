@@ -1,5 +1,6 @@
 const std = @import("std");
 const patterns = @import("patterns.zig");
+const Regex = @import("Regex.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -15,6 +16,8 @@ pub fn main() !void {
     }
 
     for (patternsList.items) |item| {
-        std.log.info("Pattern: [{s}]", .{item.items});
+        std.log.info("[{s}] : [{s}]", .{ item.name.items, item.pattern.items });
+        var r = try Regex.parse(item.pattern.items, alloc);
+        defer r.deinit();
     }
 }
