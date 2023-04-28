@@ -1,6 +1,21 @@
 const std = @import("std");
 
-pub fn getPatterns(alloc: std.mem.Allocator) !std.ArrayList(std.ArrayList(u8)) {
+pub const Pattern = struct {
+    pattern: std.ArrayList(u8),
+    name: std.ArrayList(u8),
+    pub fn init(alloc: std.mem.Allocator) Pattern {
+        return .{
+            .pattern = std.ArrayList(u8).init(alloc),
+            .name = std.ArrayList(u8).init(alloc),
+        };
+    }
+    pub fn deinit(self: Pattern) void {
+        self.pattern.deinit();
+        self.name.deinit();
+    }
+};
+
+pub fn getPatterns(alloc: std.mem.Allocator) !std.ArrayList(Pattern) {
     const fileName = "src/Zig.tmLanguage.json";
     var file = try std.fs.cwd().openFile(fileName, .{});
     defer file.close();

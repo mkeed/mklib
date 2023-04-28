@@ -7,7 +7,7 @@ pub fn main() !void {
 
     const alloc = gpa.allocator();
     var patternsList = try patterns.getPatterns(alloc);
-    errdefer {
+    defer {
         for (patternsList.items) |item| {
             item.deinit();
         }
