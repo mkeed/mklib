@@ -26,7 +26,7 @@ const Quantifier = enum { ZeroOrMore, OneOrMore, ZeroOrOne };
 
 const Look = enum { PositiveLookAhead, NegativeLookAhead, PositiveLookBehind, NegativeLookBehind };
 
-const Token = union(enum) {
+pub const Token = union(enum) {
     anchor: Anchor,
     class: Class,
     posix: Posix,
@@ -35,7 +35,74 @@ const Token = union(enum) {
     quantifier: Quantifier,
     look: Look,
     char: u8,
-    escape: u8,
+    pub fn eql(self: Token, other: Token) bool {
+        switch (self) {
+            .anchor => |a| {
+                switch (other) {
+                    .anchor => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .class => |a| {
+                switch (other) {
+                    .class => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .posix => |a| {
+                switch (other) {
+                    .posix => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .special => |a| {
+                switch (other) {
+                    .special => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .char => |a| {
+                switch (other) {
+                    .char => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .look => |a| {
+                switch (other) {
+                    .look => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .control => |a| {
+                switch (other) {
+                    .control => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+            .quantifier => |a| {
+                switch (other) {
+                    .quantifier => |b| {
+                        return a == b;
+                    },
+                    else => return false,
+                }
+            },
+        }
+    }
     pub fn format(self: Token, _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
         switch (self) {
             .anchor => |a| {
@@ -50,7 +117,7 @@ const Token = union(enum) {
             .special => |a| {
                 try std.fmt.format(writer, "Special:{}", .{a});
             },
-            .char, .escape => |a| {
+            .char => |a| {
                 try std.fmt.format(writer, "Char:{c}", .{a});
             },
             .look => |a| {
@@ -154,12 +221,9 @@ const Matches = [_]TokenMatch{
     strMatch("(?<!", .{ .look = .NegativeLookBehind }),
 };
 
-pub fn parse(pattern: []const u8, alloc: std.mem.Allocator) !Regex {
-    var reg = Regex.init(alloc);
-    errdefer reg.deinit();
-
+pub fn tokenize(pattern: []const u8, alloc: std.mem.Allocator) !std.ArrayList(TokenInfo) {
     var tokens = std.ArrayList(TokenInfo).init(alloc);
-    defer tokens.deinit();
+    errdefer tokens.deinit();
 
     var idx: usize = 0;
     while (idx < pattern.len) {
@@ -186,10 +250,12 @@ pub fn parse(pattern: []const u8, alloc: std.mem.Allocator) !Regex {
             }
         }
     }
+    return tokens;
+}
 
-    for (tokens.items) |token| {
-        std.log.info("Token:[{}]:[{s}]", .{ token.token, token.val });
-    }
-
+pub fn parse(pattern: []const u8, alloc: std.mem.Allocator) !Regex {
+    var reg = Regex.init(alloc);
+    errdefer reg.deinit();
+    _ = pattern;
     return reg;
 }
