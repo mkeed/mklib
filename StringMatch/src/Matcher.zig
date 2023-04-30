@@ -42,12 +42,22 @@ pub const Boundary = enum {
 };
 
 pub const MatchState = struct {
-    //
+    match: MatchOption,
+    next: ?usize,
 };
 
 pub const Match = struct {
     start: usize,
     len: usize,
+};
+
+pub const ActiveState = struct {
+    idx: usize,
+    data: ActiveStateData,
+    pub const ActiveStateData = union(enum) {
+        loop: Loop.Info,
+        string: String.Info,
+    };
 };
 
 pub const MatchEngine = struct {
@@ -99,3 +109,8 @@ fn readerGetCodePoint(reader: anytype) !?CodePoint {
     }
     return try std.unicode.utf8Decode(other_bytes[0..seq_len]);
 }
+
+const ActiveState = struct {
+    prev: ?*ActiveState,
+    children: usize,
+};
