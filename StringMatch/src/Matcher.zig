@@ -95,6 +95,101 @@ pub const MatchEngine = struct {
     }
 };
 
+pub const MatchRun = struct {
+    alloc: std.mem.Allocator,
+    engine: MatchEngine,
+    stacks: std.ArrayList(*Stack),
+    list1: *std.ArrayList(*Stack),
+    list2: *std.ArrayList(*Stack),
+    cur: *std.ArrayList(*Stack),
+    next: *std.ArrayList(*Stack),
+    results: std.ArrayList(MatchState),
+    idx: usize,
+    pub fn init(alloc: std.mem.Allocator, engine: MatchEngine) !MatchRun {
+        var list1 = try alloc.create(std.ArrayList(*Stack));
+        errdefer alloc.destroy(list1);
+        list1.* = std.ArrayList(*Stack).init(alloc);
+        errdefer list1.deinit();
+        var list2 = try alloc.create(std.ArrayList(*Stack));
+        errdefer alloc.destroy(list2);
+        list2.* = std.ArrayList(*Stack).init(alloc);
+        errdefer list2.deinit();
+
+        return MatchRun{
+            .alloc = alloc,
+            .engine = engine,
+            .stacks = std.ArrayList(*Stack),
+            .list1 = list1,
+            .list2 = list2,
+            .cur = list1,
+            .next = list2,
+            .idx = 0,
+        };
+    }
+    pub fn newStack(self: MatchRun) !*Stack {
+        var stack = try alloc.create(Stack);
+        errdefer self.alloc.destroy(stack);
+        stack.* = Stack.init(alloc);
+        errdefer stack.deinit();
+        try self.stacks.append(stack);
+        return stack;
+    }
+    pub fn duplicate(self: MatchRun, stack: *Stack) !*Stack {
+        var newStack = self.alloc.create(Stack);
+        errdefer self.alloc.destroy(newStack);
+        newStack.* = try stack.duplicate();
+        errdefer newStack.deinit();
+        try self.stacks.append(stack);
+        return newStack;
+    }
+    pub fn process(self: *MatcRun, value: CodePoint) !void {
+        defer {
+            var tmp = self.cur;
+            self.cur = self.next;
+            self.next = tmp;
+        }
+        self.next.clearRetainingCapacity();
+        try self.engine.matchStates[0].match(value, null, self.next);
+
+        for (self.cur.items) |cur| {
+            //try cur.match(value,
+        }
+    }
+    pub fn deinit(self: MatchRun) void {
+        for (self.stacks) |stack| {
+            stack.deinit();
+            self.alloc.destroy(stack);
+        }
+        self.stacks.deinit();
+
+        self.list1.deinit();
+        self.list2.deinit();
+
+        self.alloc.destroy(self.list1);
+        self.alloc.destroy(self.list2);
+    }
+};
+
+const Stack = struct {
+    alloc: std.mem.Allocator,
+    stack: std.ArrayList(ActiveState),
+    pub fn init(alloc: std.mem.Allocator) Stack {
+        return .{
+            .alloc = alloc,
+            .stack = std.ArrayList(ActiveState).init(alloc),
+        };
+    }
+    pub fn deinit(self: Stack) void {
+        self.stack.deinit();
+    }
+    pub fn duplciate(self: Stack) !Stack {
+        var stack = Stack.init(self.alloc);
+        errdefer stack.deinit();
+        try stack.stack.appendSlice(self.stack.items);
+        return stack;
+    }
+};
+
 fn readerGetCodePoint(reader: anytype) !?CodePoint {
     var first_byte = [1]u8{0};
     const len = try reader.read(&first_byte);
