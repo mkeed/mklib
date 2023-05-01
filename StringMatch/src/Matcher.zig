@@ -42,8 +42,18 @@ pub const Boundary = enum {
 };
 
 pub const MatchState = struct {
+    pub const MatchOption = union(enum) {
+        option: []const usize,
+        string: []const u8,
+        loop: Loop,
+    };
     match: MatchOption,
     next: ?usize,
+    pub fn match(self: MatchState, value: CodePoint, state: ?ActiveState, list: *std.ArrayList, run: *MatchRun) !void {
+        switch (self.match) {
+            .option => |opt| {},
+        }
+    }
 };
 
 pub const Match = struct {
@@ -149,7 +159,7 @@ pub const MatchRun = struct {
             self.next = tmp;
         }
         self.next.clearRetainingCapacity();
-        try self.engine.matchStates[0].match(value, null, self.next);
+        try self.engine.matchStates[0].match(value, null, self.next, &self);
 
         for (self.cur.items) |cur| {
             //try cur.match(value,
