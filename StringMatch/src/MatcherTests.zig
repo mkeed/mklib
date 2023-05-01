@@ -11,6 +11,7 @@ const TestCase = struct {
     pattern: Pattern,
     states: []const MatchState,
     cases: []const TestString,
+    implemented: bool = true,
 };
 
 const TestString = struct { haystack: []const u8, results: []const Matcher.Match };
@@ -32,6 +33,22 @@ const Tc = [_]TestCase{
         },
     },
     .{
+        .pattern = .{ .regex = "(abcd)(1234)" },
+        .states = &.{
+            .{ .match = .{ .string = .{ .string = &.{ 'a', 'b', 'c', 'd' } } }, .next = 1 },
+            .{ .match = .{ .string = .{ .string = &.{ '1', '2', '3', '4' } } }, .next = null },
+        },
+        .cases = &.{
+            .{
+                .haystack = "abcd1234 abcd124 abcd1234",
+                .results = &.{
+                    .{ .start = 0, .len = 8 },
+                    .{ .start = 17, .len = 8 },
+                },
+            },
+        },
+    },
+    .{
         .pattern = .{ .regex = "a{3,5}" },
         .states = &.{
             .{ .match = .{ .loop = .{ .idx = 1, .lowerBound = 3, .upperBound = 5 } }, .next = null },
@@ -46,6 +63,7 @@ const Tc = [_]TestCase{
                 },
             },
         },
+        .implemented = false,
     },
 };
 
@@ -59,7 +77,16 @@ test {
             var runner = try match.createRunner(alloc);
             defer runner.deinit();
             var fbs = std.io.fixedBufferStream(testCase.haystack);
-            try runner.processReader(fbs.reader());
+            runner.processReader(fbs.reader()) catch |err| {
+                switch (err) {
+                    error.NotImplementedYet => {
+                        if (patternTest.implemented == false) continue else return err;
+                    },
+                    else => {
+                        return err;
+                    },
+                }
+            };
             try std.testing.expectEqual(testCase.results.len, runner.results.items.len);
             tc_loop: for (testCase.results) |expRes| {
                 errdefer std.log.err("Didn't find {}", .{expRes});

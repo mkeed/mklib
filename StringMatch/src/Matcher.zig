@@ -79,16 +79,17 @@ pub const MatchState = struct {
     pub fn process(
         self: MatchState,
         value: CodePoint,
-        state: ?*Stack,
+        state: *Stack,
         run: *MatchRun,
         stateIdx: usize,
     ) !void {
         const stringIdx = run.idx;
         const list = run.next;
         const curState = if (state) |s| if (s.topState()) |ts| ts else null else null;
+        const active_state = if (curState) |cs| cs else self.initBeginState(stateIdx, run.idx);
         switch (self.match) {
+            range => |range| {},
             .string => |str| {
-                const active_state = if (curState) |cs| cs else self.initBeginState(stateIdx, run.idx);
                 const string_state = switch (active_state.data) {
                     .string => |s| s,
                     else => return error.CorruptedData,
@@ -141,8 +142,7 @@ pub const MatchState = struct {
                     },
                 }
             },
-            //.loop => |loop| {},
-            else => unreachable, //TODO
+            else => return error.NotImplementedYet, //TODO
         }
     }
     pub fn initBeginState(self: MatchState, stateIdx: usize, begin: usize) ActiveState {
