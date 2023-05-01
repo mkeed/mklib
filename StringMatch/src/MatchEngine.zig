@@ -26,6 +26,12 @@ pub fn match(engine: MatchEngine, options: MatchOptions, alloc: std.mem.Allocato
     }
 }
 
+pub const ActiveState = struct {
+    parent: *ActiveState,
+    children: std.ArrayList(*ActiveState),
+    info: MatchInfo,
+};
+
 fn readerGetCodePoint(reader: anytype) !?CodePoint {
     var first_byte = [1]u8{0};
     const len = try reader.read(&first_byte);
