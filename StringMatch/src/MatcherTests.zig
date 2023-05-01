@@ -10,49 +10,49 @@ const Pattern = union(enum) {
 const TestCase = struct {
     pattern: Pattern,
     states: []const MatchState,
-    cases: TestString,
+    cases: []const TestString,
 };
 
-const TestString = struct { haystack: []const u8, results: []Matcher.Result };
+const TestString = struct { haystack: []const u8, results: []const Matcher.Match };
 
 const Tc = [_]TestCase{
     .{
-        .pattern = .{ .regex = "(bat|asd|bbb)" },
+        .pattern = .{ .regex = "abcd" },
         .states = &.{
-            .{ .match = .{ .option = &.{ 1, 2, 3 } }, .next = null },
-            .{ .match = .{ .string = "bat" }, .next = null },
-            .{ .match = .{ .string = "asd" }, .next = null },
-            .{ .match = .{ .string = "bbb" }, .next = null },
+            .{ .match = .{ .string = &.{ 'a', 'b', 'c', 'd' } }, .next = null },
         },
         .cases = &.{
-            .{ .haystack = "bat bat bbb asd", .results = &.{
-                .{ .start = 0, .len = 3 },
-                .{ .start = 4, .len = 3 },
-                .{ .start = 8, .len = 3 },
-                .{ .start = 12, .len = 3 },
-            } },
-        },
-    },
-
-    .{
-        .pattern = .{ .regex = "(abcd|1234){1,3}" },
-        .states = &.{
             .{
-                .match = .{ .loop = .{ .min = 1, .max = 3, .state = 1 } },
-                .next = null,
-            },
-            .{
-                .match = .{ .option = &.{ 2, 3 } },
-                .next = null,
-            },
-            .{
-                .match = .{ .string = "abcd" },
-                .next = null,
-            },
-            .{
-                .match = .{ .string = "1234" },
-                .next = null,
+                .haystack = "abcd abcd aaa abc ",
+                .results = &.{
+                    .{ .start = 0, .len = 4 },
+                    .{ .start = 5, .len = 4 },
+                },
             },
         },
     },
 };
+
+test {
+    const alloc = std.testing.allocator;
+    for (Tc) |patternTest| {
+        const match = Matcher.MatchEngine{
+            .matchStates = patternTest.states,
+        };
+        for (patternTest.cases) |testCase| {
+            var runner = try match.createRunner(alloc);
+            defer runner.deinit();
+            var fbs = std.io.fixedBufferStream(testCase.haystack);
+            try runner.processReader(fbs.reader());
+            try std.testing.expectEqual(testCase.results.len, runner.results.items.len);
+            tc_loop: for (testCase.results) |expRes| {
+                for (runner.results.items) |result| {
+                    if (expRes.eql(result)) {
+                        continue :tc_loop;
+                    }
+                }
+                try std.testing.expect(false);
+            }
+        }
+    }
+}

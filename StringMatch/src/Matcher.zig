@@ -34,24 +34,66 @@ pub const Loop = struct {
     idx: StateId,
     upperBound: ?usize,
     lowerBound: ?usize,
+    pub const Info = struct {
+        idx: usize,
+    };
+};
+
+pub const String = struct {
+    string: []const u8,
+    pub const Info = struct {
+        idx: usize,
+    };
 };
 
 pub const Boundary = enum {
     Word,
-    pub fn match(self: Boundary, char: CodePoint) bool {}
+    //pub fn match(self: Boundary, char: CodePoint) bool {}
 };
 
 pub const MatchState = struct {
     pub const MatchOption = union(enum) {
         option: []const usize,
-        string: []const u8,
+        string: []const CodePoint,
         loop: Loop,
     };
     match: MatchOption,
     next: ?usize,
-    pub fn match(self: MatchState, value: CodePoint, state: ?ActiveState, list: *std.ArrayList, run: *MatchRun) !void {
+    pub fn process(
+        self: MatchState,
+        value: CodePoint,
+        state: ?ActiveState,
+        list: *std.ArrayList(*Stack),
+        run: *MatchRun,
+        stringIdx: usize,
+        stateIdx: usize,
+    ) !void {
+        _ = value;
+        _ = state;
+        _ = list;
+        _ = run;
+        _ = self;
         switch (self.match) {
-            .option => |opt| {},
+            .string => |str| {
+                if (state) |s| {} else {
+                    if (value == str[0]) {
+                        if (str.len > 1) {
+                            var stack = try run.createStack();
+                            try stack.append(.{
+                                .stateIdx = stateIdx,
+                                .data = .{
+                                    .string = .{
+                                        .idx = 1,
+                                    },
+                                    .begin = stringIdx,
+                                },
+                            });
+                        } else {
+                            try run.results.append(.{ .start = idx, .len = 1 });
+                        }
+                    }
+                }
+            },
         }
     }
 };
@@ -59,11 +101,15 @@ pub const MatchState = struct {
 pub const Match = struct {
     start: usize,
     len: usize,
+    pub fn eql(self: Match, other: Match) bool {
+        return self.start == other.start and self.len == other.len;
+    }
 };
 
 pub const ActiveState = struct {
-    idx: usize,
+    stateIdx: usize,
     data: ActiveStateData,
+    begin: usize,
     pub const ActiveStateData = union(enum) {
         loop: Loop.Info,
         string: String.Info,
@@ -73,35 +119,8 @@ pub const ActiveState = struct {
 pub const MatchEngine = struct {
     matchStates: []const MatchState,
 
-    pub fn find(self: Match, reader: anytype, alloc: std.mem.Allocator) std.ArrayList(Match) {
-        var stack_1 = std.ArrayList(ActiveState).init(alloc);
-        defer stack_1.deinit();
-
-        var stack_2 = std.ArrayList(ActiveState).init(alloc);
-        defer stack_2.deinit();
-
-        var cur = &stack_1;
-        var next = &stack_2;
-
-        var matches = std.ArrayList(Match).init(alloc);
-        errdefer matches.deinit();
-
-        while (try readerGetCodePoint(reader)) |codePoint| {
-            defer {
-                var tmp = cur;
-                cur = next;
-                next = tmp;
-            }
-            next.clearRetainingCapacity();
-            if (self.matchStates[0].match(codePoint, &matches)) |state| {
-                try next.append(state);
-            }
-            for (cur.items) |item| {
-                if (item.match(codePoint, &matches)) |state| {
-                    try next.append(state);
-                }
-            }
-        }
+    pub fn createRunner(self: MatchEngine, alloc: std.mem.Allocator) !MatchRun {
+        return MatchRun.init(alloc, self);
     }
 };
 
@@ -113,7 +132,7 @@ pub const MatchRun = struct {
     list2: *std.ArrayList(*Stack),
     cur: *std.ArrayList(*Stack),
     next: *std.ArrayList(*Stack),
-    results: std.ArrayList(MatchState),
+    results: std.ArrayList(Match),
     idx: usize,
     pub fn init(alloc: std.mem.Allocator, engine: MatchEngine) !MatchRun {
         var list1 = try alloc.create(std.ArrayList(*Stack));
@@ -128,18 +147,33 @@ pub const MatchRun = struct {
         return MatchRun{
             .alloc = alloc,
             .engine = engine,
-            .stacks = std.ArrayList(*Stack),
+            .stacks = std.ArrayList(*Stack).init(alloc),
             .list1 = list1,
             .list2 = list2,
             .cur = list1,
             .next = list2,
+            .results = std.ArrayList(Match).init(alloc),
             .idx = 0,
         };
     }
-    pub fn newStack(self: MatchRun) !*Stack {
-        var stack = try alloc.create(Stack);
+    pub fn deinit(self: MatchRun) void {
+        for (self.stacks.items) |stack| {
+            stack.deinit();
+            self.alloc.destroy(stack);
+        }
+        self.stacks.deinit();
+
+        self.list1.deinit();
+        self.list2.deinit();
+
+        self.alloc.destroy(self.list1);
+        self.alloc.destroy(self.list2);
+        self.results.deinit();
+    }
+    pub fn createStack(self: MatchRun) !*Stack {
+        var stack = try self.alloc.create(Stack);
         errdefer self.alloc.destroy(stack);
-        stack.* = Stack.init(alloc);
+        stack.* = Stack.init(self.alloc);
         errdefer stack.deinit();
         try self.stacks.append(stack);
         return stack;
@@ -152,31 +186,23 @@ pub const MatchRun = struct {
         try self.stacks.append(stack);
         return newStack;
     }
-    pub fn process(self: *MatcRun, value: CodePoint) !void {
+    pub fn processReader(self: *MatchRun, reader: anytype) !void {
+        while (try readerGetCodePoint(reader)) |ch| {
+            try self.process(ch);
+        }
+    }
+    pub fn process(self: *MatchRun, value: CodePoint) !void {
         defer {
             var tmp = self.cur;
             self.cur = self.next;
             self.next = tmp;
         }
         self.next.clearRetainingCapacity();
-        try self.engine.matchStates[0].match(value, null, self.next, &self);
+        try self.engine.matchStates[0].process(value, null, self.next, self);
 
-        for (self.cur.items) |cur| {
-            //try cur.match(value,
-        }
-    }
-    pub fn deinit(self: MatchRun) void {
-        for (self.stacks) |stack| {
-            stack.deinit();
-            self.alloc.destroy(stack);
-        }
-        self.stacks.deinit();
-
-        self.list1.deinit();
-        self.list2.deinit();
-
-        self.alloc.destroy(self.list1);
-        self.alloc.destroy(self.list2);
+        //for (self.cur.items) |cur| {
+        //try cur.match(value,
+        //}
     }
 };
 
@@ -200,22 +226,30 @@ const Stack = struct {
     }
 };
 
+const CodePointInfo = struct {
+    len: u8,
+    cp: CodePoint,
+    pub fn fromSlice(data: []const u8) !CodePointInfo {
+        const seq_len = try std.unicode.utf8CodepointSequenceLength(data[0]);
+        const cp = try std.unicode.utf8Decode(data[0..seq_len]);
+        return CodePointInfo{
+            .len = seq_len,
+            .cp = cp,
+        };
+    }
+};
+
 fn readerGetCodePoint(reader: anytype) !?CodePoint {
     var first_byte = [1]u8{0};
     const len = try reader.read(&first_byte);
     if (len == 0) return null;
-    const seq_len = try std.unicode.utf8SequenceLength(first_byte[0]);
+    const seq_len = try std.unicode.utf8CodepointSequenceLength(first_byte[0]);
     var other_bytes = [4]u8{ first_byte[0], 0, 0, 0 };
-    if (seqlen > 1) {
+    if (seq_len > 1) {
         const read_len = try reader.readAll(other_bytes[1..seq_len]);
-        if (read_len != sel_len - 1) {
+        if (read_len != seq_len - 1) {
             return null;
         }
     }
     return try std.unicode.utf8Decode(other_bytes[0..seq_len]);
 }
-
-const ActiveState = struct {
-    prev: ?*ActiveState,
-    children: usize,
-};
