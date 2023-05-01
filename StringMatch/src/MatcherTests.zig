@@ -46,6 +46,7 @@ test {
             try runner.processReader(fbs.reader());
             try std.testing.expectEqual(testCase.results.len, runner.results.items.len);
             tc_loop: for (testCase.results) |expRes| {
+                errdefer std.log.err("Didn't find {}", .{expRes});
                 for (runner.results.items) |result| {
                     if (expRes.eql(result)) {
                         continue :tc_loop;

@@ -62,20 +62,55 @@ pub const MatchState = struct {
     pub fn process(
         self: MatchState,
         value: CodePoint,
-        state: ?ActiveState,
-        list: *std.ArrayList(*Stack),
+        state: ?*Stack,
         run: *MatchRun,
-        stringIdx: usize,
         stateIdx: usize,
     ) !void {
-        _ = value;
-        _ = state;
-        _ = list;
-        _ = run;
-        _ = self;
+        const stringIdx = run.idx;
+        const list = run.next;
+
         switch (self.match) {
             .string => |str| {
-                if (state) |s| {} else {
+                if (state) |s| {
+                    if (s.topState()) |ts| {
+                        const string_state = switch (ts.data) {
+                            .string => |strState| strState,
+                            else => {
+                                return error.CorruptedState;
+                            },
+                        };
+
+                        if (str.len >= string_state.idx) {
+                            if (value == str[string_state.idx]) {
+                                if (str.len == (string_state.idx + 1)) {
+                                    if (s.pop()) |popState| {
+                                        _ = popState;
+                                        if (s.topState() != null) {
+                                            try list.append(s);
+                                        } else {
+                                            const res = Match{ .start = ts.begin, .len = stringIdx - ts.begin + 1 };
+                                            std.log.err("result :[{}]", .{res});
+                                            try run.results.append(res);
+                                        }
+                                    }
+                                } else {
+                                    try s.replaceTopState(.{
+                                        .stateIdx = stateIdx,
+                                        .data = .{
+                                            .string = .{ .idx = string_state.idx + 1 },
+                                        },
+                                        .begin = ts.begin,
+                                    });
+                                    try list.append(s);
+                                }
+                            }
+                        } else {
+                            return error.CorrupterState; // this should have already been moved to the nextState
+                        }
+                    } else {
+                        return error.CorruptedState;
+                    }
+                } else {
                     if (value == str[0]) {
                         if (str.len > 1) {
                             var stack = try run.createStack();
@@ -85,15 +120,19 @@ pub const MatchState = struct {
                                     .string = .{
                                         .idx = 1,
                                     },
-                                    .begin = stringIdx,
                                 },
+                                .begin = stringIdx,
                             });
+                            try list.append(stack);
                         } else {
-                            try run.results.append(.{ .start = idx, .len = 1 });
+                            const res = Match{ .start = stringIdx, .len = 1 };
+                            std.log.err("result :[{}]", .{res});
+                            try run.results.append(res);
                         }
                     }
                 }
             },
+            else => unreachable, //TODO
         }
     }
 };
@@ -170,7 +209,7 @@ pub const MatchRun = struct {
         self.alloc.destroy(self.list2);
         self.results.deinit();
     }
-    pub fn createStack(self: MatchRun) !*Stack {
+    pub fn createStack(self: *MatchRun) !*Stack {
         var stack = try self.alloc.create(Stack);
         errdefer self.alloc.destroy(stack);
         stack.* = Stack.init(self.alloc);
@@ -178,7 +217,7 @@ pub const MatchRun = struct {
         try self.stacks.append(stack);
         return stack;
     }
-    pub fn duplicate(self: MatchRun, stack: *Stack) !*Stack {
+    pub fn duplicate(self: *MatchRun, stack: *Stack) !*Stack {
         var newStack = self.alloc.create(Stack);
         errdefer self.alloc.destroy(newStack);
         newStack.* = try stack.duplicate();
@@ -196,13 +235,18 @@ pub const MatchRun = struct {
             var tmp = self.cur;
             self.cur = self.next;
             self.next = tmp;
+            self.idx += 1;
         }
         self.next.clearRetainingCapacity();
-        try self.engine.matchStates[0].process(value, null, self.next, self);
+        try self.engine.matchStates[0].process(value, null, self, 0);
 
-        //for (self.cur.items) |cur| {
-        //try cur.match(value,
-        //}
+        for (self.cur.items) |cur| {
+            if (cur.topState()) |ts| {
+                try self.engine.matchStates[ts.stateIdx].process(value, cur, self, ts.stateIdx);
+            } else {
+                return error.CorruptState;
+            }
+        }
     }
 };
 
@@ -218,11 +262,25 @@ const Stack = struct {
     pub fn deinit(self: Stack) void {
         self.stack.deinit();
     }
+    pub fn topState(self: Stack) ?ActiveState {
+        if (self.stack.items.len == 0) return null;
+        return self.stack.items[self.stack.items.len - 1];
+    }
     pub fn duplciate(self: Stack) !Stack {
         var stack = Stack.init(self.alloc);
         errdefer stack.deinit();
         try stack.stack.appendSlice(self.stack.items);
         return stack;
+    }
+    pub fn replaceTopState(self: *Stack, state: ActiveState) !void {
+        if (self.stack.items.len == 0) return error.CorruptState;
+        self.stack.items[self.stack.items.len - 1] = state;
+    }
+    pub fn append(self: *Stack, state: ActiveState) !void {
+        try self.stack.append(state);
+    }
+    pub fn pop(self: *Stack) ?ActiveState {
+        return self.stack.popOrNull();
     }
 };
 
