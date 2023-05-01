@@ -86,7 +86,6 @@ pub const MatchState = struct {
         const stringIdx = run.idx;
         const list = run.next;
         const curState = if (state) |s| if (s.topState()) |ts| ts else null else null;
-
         switch (self.match) {
             .string => |str| {
                 const active_state = if (curState) |cs| cs else self.initBeginState(stateIdx, run.idx);
@@ -101,11 +100,12 @@ pub const MatchState = struct {
                         }
                     },
                     .Match => {
+                        std.log.err("Match: [{c}]", .{cpfmt(value)});
                         if (state) |s| {
                             try s.replaceTopState(.{
                                 .stateIdx = active_state.stateIdx,
                                 .data = .{ .string = .{ .idx = string_state.idx + 1 } },
-                                .begin = string_state.idx,
+                                .begin = active_state.begin,
                             });
                             try list.append(s);
                         } else {
@@ -113,12 +113,13 @@ pub const MatchState = struct {
                             try s.append(.{
                                 .stateIdx = active_state.stateIdx,
                                 .data = .{ .string = .{ .idx = string_state.idx + 1 } },
-                                .begin = stringIdx,
+                                .begin = active_state.begin,
                             });
                             try list.append(s);
                         }
                     },
                     .EndOfString => {
+                        std.log.err("EndOfString: [{c}]", .{cpfmt(value)});
                         if (self.next) |n| {
                             const nextState = run.engine.matchStates[n].initBeginState(n, active_state.begin);
                             if (state) |s| {
@@ -130,10 +131,12 @@ pub const MatchState = struct {
                                 try list.append(s);
                             }
                         } else {
-                            try run.results.append(.{
+                            const res = Match{
                                 .start = active_state.begin,
                                 .len = stringIdx - active_state.begin + 1,
-                            });
+                            };
+                            std.log.err("Result:[{}]", .{res});
+                            try run.results.append(res);
                         }
                     },
                 }
@@ -267,6 +270,7 @@ pub const MatchRun = struct {
             self.idx += 1;
         }
         self.next.clearRetainingCapacity();
+        std.log.err("Process: [{c}]", .{cpfmt(value)});
         try self.engine.matchStates[0].process(value, null, self, 0);
 
         for (self.cur.items) |cur| {
@@ -339,4 +343,23 @@ fn readerGetCodePoint(reader: anytype) !?CodePoint {
         }
     }
     return try std.unicode.utf8Decode(other_bytes[0..seq_len]);
+}
+
+fn cpfmt(value: CodePoint) std.fmt.Formatter(fmtCodePoint) {
+    return .{
+        .data = value,
+    };
+}
+
+fn fmtCodePoint(value: CodePoint, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+    _ = options;
+    _ = fmt;
+    var buf: [4]u8 = undefined;
+    var len = std.unicode.utf8Encode(value, buf[0..]) catch 0;
+    if (len == 0) {
+        buf[0] = 0xFF;
+        buf[1] = 0xFD;
+        len = 2;
+    }
+    try std.fmt.format(writer, "{s}", .{buf[0..len]});
 }
