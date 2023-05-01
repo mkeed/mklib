@@ -74,6 +74,10 @@ pub const MatchState = struct {
         string: String,
         loop: Loop,
     };
+    pub const Result = enum {
+        Success,
+        NoMatch,
+    };
     match: MatchOption,
     next: ?usize,
     pub fn process(
@@ -82,69 +86,7 @@ pub const MatchState = struct {
         state: *Stack,
         run: *MatchRun,
         stateIdx: usize,
-    ) !void {
-        const stringIdx = run.idx;
-        const list = run.next;
-        const curState = if (state) |s| if (s.topState()) |ts| ts else null else null;
-        const active_state = if (curState) |cs| cs else self.initBeginState(stateIdx, run.idx);
-        switch (self.match) {
-            range => |range| {},
-            .string => |str| {
-                const string_state = switch (active_state.data) {
-                    .string => |s| s,
-                    else => return error.CorruptedData,
-                };
-                switch (try str.match(string_state.idx, value)) {
-                    .NotMatch => {
-                        if (state) |s| {
-                            run.cleanupStack(s);
-                        }
-                    },
-                    .Match => {
-                        std.log.err("Match: [{c}]", .{cpfmt(value)});
-                        if (state) |s| {
-                            try s.replaceTopState(.{
-                                .stateIdx = active_state.stateIdx,
-                                .data = .{ .string = .{ .idx = string_state.idx + 1 } },
-                                .begin = active_state.begin,
-                            });
-                            try list.append(s);
-                        } else {
-                            var s = try run.createStack();
-                            try s.append(.{
-                                .stateIdx = active_state.stateIdx,
-                                .data = .{ .string = .{ .idx = string_state.idx + 1 } },
-                                .begin = active_state.begin,
-                            });
-                            try list.append(s);
-                        }
-                    },
-                    .EndOfString => {
-                        std.log.err("EndOfString: [{c}]", .{cpfmt(value)});
-                        if (self.next) |n| {
-                            const nextState = run.engine.matchStates[n].initBeginState(n, active_state.begin);
-                            if (state) |s| {
-                                try s.replaceTopState(nextState);
-                                try list.append(s);
-                            } else {
-                                var s = try run.createStack();
-                                try s.append(nextState);
-                                try list.append(s);
-                            }
-                        } else {
-                            const res = Match{
-                                .start = active_state.begin,
-                                .len = stringIdx - active_state.begin + 1,
-                            };
-                            std.log.err("Result:[{}]", .{res});
-                            try run.results.append(res);
-                        }
-                    },
-                }
-            },
-            else => return error.NotImplementedYet, //TODO
-        }
-    }
+    ) !Result {}
     pub fn initBeginState(self: MatchState, stateIdx: usize, begin: usize) ActiveState {
         return .{
             .stateIdx = stateIdx,
@@ -191,8 +133,6 @@ pub const MatchRun = struct {
     stacks: std.ArrayList(*Stack),
     list1: *std.ArrayList(*Stack),
     list2: *std.ArrayList(*Stack),
-    cur: *std.ArrayList(*Stack),
-    next: *std.ArrayList(*Stack),
     results: std.ArrayList(Match),
     idx: usize,
     pub fn init(alloc: std.mem.Allocator, engine: MatchEngine) !MatchRun {
@@ -204,11 +144,12 @@ pub const MatchRun = struct {
         errdefer alloc.destroy(list2);
         list2.* = std.ArrayList(*Stack).init(alloc);
         errdefer list2.deinit();
-
+        var stacks = std.ArrayList(*Stack).init(alloc);
+        errdefer stacks.deinit();
         return MatchRun{
             .alloc = alloc,
             .engine = engine,
-            .stacks = std.ArrayList(*Stack).init(alloc),
+            .stacks = stacks,
             .list1 = list1,
             .list2 = list2,
             .cur = list1,
@@ -230,6 +171,34 @@ pub const MatchRun = struct {
         self.alloc.destroy(self.list1);
         self.alloc.destroy(self.list2);
         self.results.deinit();
+    }
+
+    pub fn processReader(self: *MatchRun, reader: anytype) !void {
+        while (try readerGetCodePoint(reader)) |ch| {
+            try self.process(ch);
+        }
+    }
+    pub fn process(self: *MatchRun, value: CodePoint) !void {
+        defer {
+            var tmp = self.cur;
+            self.cur = self.next;
+            self.next = tmp;
+            self.idx += 1;
+        }
+        self.next.clearRetainingCapacity();
+        std.log.err("Process: [{c}]", .{cpfmt(value)});
+        try self.nextState.push(self.engine.matchStates[0].initBeginState(0, self.idx));
+        if (try self.engine.matchStates[0].process(value, self.nextState, self, 0) == .Success) {
+            self.nextState = try self.createStack();
+        }
+
+        for (self.cur.items) |cur| {
+            if (cur.topState()) |ts| {
+                try self.engine.matchStates[ts.stateIdx].process(value, cur, self, ts.stateIdx);
+            } else {
+                return error.CorruptState;
+            }
+        }
     }
     pub fn createStack(self: *MatchRun) !*Stack {
         var stack = try self.alloc.create(Stack);
@@ -256,30 +225,6 @@ pub const MatchRun = struct {
         }
         stack.deinit();
         self.alloc.destroy(stack);
-    }
-    pub fn processReader(self: *MatchRun, reader: anytype) !void {
-        while (try readerGetCodePoint(reader)) |ch| {
-            try self.process(ch);
-        }
-    }
-    pub fn process(self: *MatchRun, value: CodePoint) !void {
-        defer {
-            var tmp = self.cur;
-            self.cur = self.next;
-            self.next = tmp;
-            self.idx += 1;
-        }
-        self.next.clearRetainingCapacity();
-        std.log.err("Process: [{c}]", .{cpfmt(value)});
-        try self.engine.matchStates[0].process(value, null, self, 0);
-
-        for (self.cur.items) |cur| {
-            if (cur.topState()) |ts| {
-                try self.engine.matchStates[ts.stateIdx].process(value, cur, self, ts.stateIdx);
-            } else {
-                return error.CorruptState;
-            }
-        }
     }
 };
 
@@ -315,51 +260,5 @@ const Stack = struct {
     pub fn pop(self: *Stack) ?ActiveState {
         return self.stack.popOrNull();
     }
+    pub fn push(self: *Stack, state: ActiveState) !void {}
 };
-
-const CodePointInfo = struct {
-    len: u8,
-    cp: CodePoint,
-    pub fn fromSlice(data: []const u8) !CodePointInfo {
-        const seq_len = try std.unicode.utf8CodepointSequenceLength(data[0]);
-        const cp = try std.unicode.utf8Decode(data[0..seq_len]);
-        return CodePointInfo{
-            .len = seq_len,
-            .cp = cp,
-        };
-    }
-};
-
-fn readerGetCodePoint(reader: anytype) !?CodePoint {
-    var first_byte = [1]u8{0};
-    const len = try reader.read(&first_byte);
-    if (len == 0) return null;
-    const seq_len = try std.unicode.utf8CodepointSequenceLength(first_byte[0]);
-    var other_bytes = [4]u8{ first_byte[0], 0, 0, 0 };
-    if (seq_len > 1) {
-        const read_len = try reader.readAll(other_bytes[1..seq_len]);
-        if (read_len != seq_len - 1) {
-            return null;
-        }
-    }
-    return try std.unicode.utf8Decode(other_bytes[0..seq_len]);
-}
-
-fn cpfmt(value: CodePoint) std.fmt.Formatter(fmtCodePoint) {
-    return .{
-        .data = value,
-    };
-}
-
-fn fmtCodePoint(value: CodePoint, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
-    _ = options;
-    _ = fmt;
-    var buf: [4]u8 = undefined;
-    var len = std.unicode.utf8Encode(value, buf[0..]) catch 0;
-    if (len == 0) {
-        buf[0] = 0xFF;
-        buf[1] = 0xFD;
-        len = 2;
-    }
-    try std.fmt.format(writer, "{s}", .{buf[0..len]});
-}
