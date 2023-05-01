@@ -32,18 +32,35 @@ pub const List = struct {
 
 pub const Loop = struct {
     idx: StateId,
-    upperBound: ?usize,
     lowerBound: ?usize,
+    upperBound: ?usize,
     pub const Info = struct {
         idx: usize,
     };
 };
 
 pub const String = struct {
-    string: []const u8,
+    string: []const CodePoint,
     pub const Info = struct {
         idx: usize,
     };
+    pub const StringMatch = enum {
+        NotMatch,
+        Match,
+        EndOfString,
+    };
+    pub fn match(self: String, idx: usize, value: CodePoint) !StringMatch {
+        if (self.string.len < idx) return error.CorruptData;
+        if (self.string[idx] == value) {
+            if (self.string.len == idx + 1) {
+                return .EndOfString;
+            } else {
+                return .Match;
+            }
+        } else {
+            return .NotMatch;
+        }
+    }
 };
 
 pub const Boundary = enum {
@@ -54,7 +71,7 @@ pub const Boundary = enum {
 pub const MatchState = struct {
     pub const MatchOption = union(enum) {
         option: []const usize,
-        string: []const CodePoint,
+        string: String,
         loop: Loop,
     };
     match: MatchOption,
@@ -68,72 +85,73 @@ pub const MatchState = struct {
     ) !void {
         const stringIdx = run.idx;
         const list = run.next;
+        const curState = if (state) |s| if (s.topState()) |ts| ts else null else null;
 
         switch (self.match) {
             .string => |str| {
-                if (state) |s| {
-                    if (s.topState()) |ts| {
-                        const string_state = switch (ts.data) {
-                            .string => |strState| strState,
-                            else => {
-                                return error.CorruptedState;
-                            },
-                        };
-
-                        if (str.len >= string_state.idx) {
-                            if (value == str[string_state.idx]) {
-                                if (str.len == (string_state.idx + 1)) {
-                                    if (s.pop()) |popState| {
-                                        _ = popState;
-                                        if (s.topState() != null) {
-                                            try list.append(s);
-                                        } else {
-                                            const res = Match{ .start = ts.begin, .len = stringIdx - ts.begin + 1 };
-                                            std.log.err("result :[{}]", .{res});
-                                            try run.results.append(res);
-                                        }
-                                    }
-                                } else {
-                                    try s.replaceTopState(.{
-                                        .stateIdx = stateIdx,
-                                        .data = .{
-                                            .string = .{ .idx = string_state.idx + 1 },
-                                        },
-                                        .begin = ts.begin,
-                                    });
-                                    try list.append(s);
-                                }
-                            }
-                        } else {
-                            return error.CorrupterState; // this should have already been moved to the nextState
+                const active_state = if (curState) |cs| cs else self.initBeginState(stateIdx, run.idx);
+                const string_state = switch (active_state.data) {
+                    .string => |s| s,
+                    else => return error.CorruptedData,
+                };
+                switch (try str.match(string_state.idx, value)) {
+                    .NotMatch => {
+                        if (state) |s| {
+                            run.cleanupStack(s);
                         }
-                    } else {
-                        return error.CorruptedState;
-                    }
-                } else {
-                    if (value == str[0]) {
-                        if (str.len > 1) {
-                            var stack = try run.createStack();
-                            try stack.append(.{
-                                .stateIdx = stateIdx,
-                                .data = .{
-                                    .string = .{
-                                        .idx = 1,
-                                    },
-                                },
+                    },
+                    .Match => {
+                        if (state) |s| {
+                            try s.replaceTopState(.{
+                                .stateIdx = active_state.stateIdx,
+                                .data = .{ .string = .{ .idx = string_state.idx + 1 } },
+                                .begin = string_state.idx,
+                            });
+                            try list.append(s);
+                        } else {
+                            var s = try run.createStack();
+                            try s.append(.{
+                                .stateIdx = active_state.stateIdx,
+                                .data = .{ .string = .{ .idx = string_state.idx + 1 } },
                                 .begin = stringIdx,
                             });
-                            try list.append(stack);
-                        } else {
-                            const res = Match{ .start = stringIdx, .len = 1 };
-                            std.log.err("result :[{}]", .{res});
-                            try run.results.append(res);
+                            try list.append(s);
                         }
-                    }
+                    },
+                    .EndOfString => {
+                        if (self.next) |n| {
+                            const nextState = run.engine.matchStates[n].initBeginState(n, active_state.begin);
+                            if (state) |s| {
+                                try s.replaceTopState(nextState);
+                                try list.append(s);
+                            } else {
+                                var s = try run.createStack();
+                                try s.append(nextState);
+                                try list.append(s);
+                            }
+                        } else {
+                            try run.results.append(.{
+                                .start = active_state.begin,
+                                .len = stringIdx - active_state.begin + 1,
+                            });
+                        }
+                    },
                 }
             },
+            //.loop => |loop| {},
             else => unreachable, //TODO
         }
+    }
+    pub fn initBeginState(self: MatchState, stateIdx: usize, begin: usize) ActiveState {
+        return .{
+            .stateIdx = stateIdx,
+            .data = switch (self.match) {
+                .option => .option,
+                .string => .{ .string = .{ .idx = 0 } },
+                .loop => .{ .loop = .{ .idx = 0 } },
+            },
+            .begin = begin,
+        };
     }
 };
 
@@ -152,6 +170,7 @@ pub const ActiveState = struct {
     pub const ActiveStateData = union(enum) {
         loop: Loop.Info,
         string: String.Info,
+        option: void,
     };
 };
 
@@ -224,6 +243,16 @@ pub const MatchRun = struct {
         errdefer newStack.deinit();
         try self.stacks.append(stack);
         return newStack;
+    }
+    pub fn cleanupStack(self: *MatchRun, stack: *Stack) void {
+        for (self.stacks.items, 0..) |s, idx| {
+            if (s == stack) {
+                _ = self.stacks.swapRemove(idx);
+                break;
+            }
+        }
+        stack.deinit();
+        self.alloc.destroy(stack);
     }
     pub fn processReader(self: *MatchRun, reader: anytype) !void {
         while (try readerGetCodePoint(reader)) |ch| {

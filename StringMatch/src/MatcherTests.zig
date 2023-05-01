@@ -19,11 +19,27 @@ const Tc = [_]TestCase{
     .{
         .pattern = .{ .regex = "abcd" },
         .states = &.{
-            .{ .match = .{ .string = &.{ 'a', 'b', 'c', 'd' } }, .next = null },
+            .{ .match = .{ .string = .{ .string = &.{ 'a', 'b', 'c', 'd' } } }, .next = null },
         },
         .cases = &.{
             .{
                 .haystack = "abcd abcd aaa abc ",
+                .results = &.{
+                    .{ .start = 0, .len = 4 },
+                    .{ .start = 5, .len = 4 },
+                },
+            },
+        },
+    },
+    .{
+        .pattern = .{ .regex = "a{3,5}" },
+        .states = &.{
+            .{ .match = .{ .loop = .{ .idx = 1, .lowerBound = 3, .upperBound = 5 } }, .next = null },
+            .{ .match = .{ .string = .{ .string = &.{'a'} } }, .next = null },
+        },
+        .cases = &.{
+            .{
+                .haystack = "aaa aaaa ",
                 .results = &.{
                     .{ .start = 0, .len = 4 },
                     .{ .start = 5, .len = 4 },
