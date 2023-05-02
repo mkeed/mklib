@@ -22,8 +22,8 @@ pub fn fileLogFn(
     const diff = now - start;
     const seconds = @intCast(usize, @divFloor(diff, std.time.ms_per_s));
     const millis = @intCast(usize, @mod(diff, std.time.ms_per_s));
-
-    std.fmt.format(fbs.writer(), "[{:>5}.{:0>3}]({}|{})", .{ seconds, millis, level, scope }) catch return;
+    _ = scope;
+    std.fmt.format(fbs.writer(), "[{:>5}.{:0>3}]({s}) ", .{ seconds, millis, level.asText() }) catch return;
     std.fmt.format(fbs.writer(), format, args) catch return;
 
     std.fmt.format(file.writer(), "{s}", .{buffer[0..fbs.pos]}) catch return;
