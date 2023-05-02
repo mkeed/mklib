@@ -128,15 +128,13 @@ pub const EventLoop = struct {
     pollfds: std.ArrayList(std.os.pollfd),
     handlers: std.ArrayList(HandlerInfo),
     pre_event_handlers: std.ArrayList(PreEventHandler),
-    err_file: std.fs.File,
     close: ?CloseOption = null,
-    pub fn init(alloc: std.mem.Allocator, err_file: std.fs.File) EventLoop {
+    pub fn init(alloc: std.mem.Allocator) EventLoop {
         return EventLoop{
             .alloc = alloc,
             .pollfds = std.ArrayList(std.os.pollfd).init(alloc),
             .handlers = std.ArrayList(HandlerInfo).init(alloc),
             .pre_event_handlers = std.ArrayList(PreEventHandler).init(alloc),
-            .err_file = err_file,
         };
     }
     pub fn deinit(self: EventLoop) void {
@@ -175,21 +173,21 @@ pub const EventLoop = struct {
             try self.pollfds.ensureTotalCapacity(self.handlers.items.len);
             self.pollfds.clearRetainingCapacity();
             for (self.handlers.items) |handler| {
-                std.fmt.format(self.err_file.writer(), "adding poll {}\n", .{handler.fd}) catch {};
+                std.log.err("adding poll {}\n", .{handler.fd});
                 try self.pollfds.append(handler.pollfd());
             }
-            std.fmt.format(self.err_file.writer(), "Poll {} items\n", .{self.pollfds.items.len}) catch {};
+            std.log.err("Poll {} items\n", .{self.pollfds.items.len});
             const num = std.os.poll(self.pollfds.items, -1) catch |err| {
                 std.log.err("System Failed: {}", .{err});
                 break :mainLoop;
             };
-            std.fmt.format(self.err_file.writer(), "Poll  returned {} items\n", .{num}) catch {};
+            std.log.err("Poll  returned {} items\n", .{num});
             if (num == 0) {
                 continue :mainLoop;
             }
             for (self.pollfds.items, 0..) |pollfd, idx| {
                 if (pollfd.revents != 0) {
-                    std.fmt.format(self.err_file.writer(), "Results :{x} {}\n", .{ pollfd.revents, pollfd.fd }) catch {};
+                    std.log.err("Results :{x} {}\n", .{ pollfd.revents, pollfd.fd });
                     switch (self.handlers.items[idx].handleEvents(pollfd.revents)) {
                         .Close => {
                             try toRemove.append(pollfd.fd);
@@ -202,7 +200,7 @@ pub const EventLoop = struct {
                 }
             }
             for (toRemove.items) |fd| {
-                std.fmt.format(self.err_file.writer(), "Removing fd:{}\n", .{fd}) catch {};
+                std.log.err("Removing fd:{}\n", .{fd});
                 for (self.handlers.items, 0..) |item, idx| {
                     if (item.fd == fd) {
                         _ = self.handlers.swapRemove(idx);
