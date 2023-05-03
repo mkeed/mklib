@@ -29,6 +29,9 @@ pub fn getFace(name: []const u8) ?Face {
     return null;
 }
 
+pub fn getFaceOrDefault(name: []const u8) Face {
+    return getFace(name) orelse Default;
+}
 pub const faces = [_]FaceList{
     .{ .name = "default", .face = .{ .fg = "white", .bg = "gray19" } },
 };

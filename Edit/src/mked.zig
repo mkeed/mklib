@@ -103,6 +103,12 @@ pub const mked = struct {
                     if (key.key == .F12) {
                         self.core.close();
                     }
+                    if (key.key == .F9) {
+                        try self.currentFrame.split(.Horizontal, 3);
+                    }
+                    if (key.key == .F10) {
+                        try self.currentFrame.split(.Vertical, 3);
+                    }
                     for (App.Input.inputs) |input| {
                         switch (input.input) {
                             .keyboard => |k| {

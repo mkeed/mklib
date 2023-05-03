@@ -17,6 +17,11 @@ pub const CursorSet = struct {
             .cursors = cursors,
         };
     }
+    pub fn dupe(self: CursorSet) !*CursorSet {
+        var new = try self.buffer.createCursorSet();
+        try new.cursors.appendSlice(self.cursors.items);
+        return new;
+    }
     pub fn deinit(self: CursorSet) void {
         self.cursors.deinit();
     }
@@ -62,8 +67,11 @@ pub const Buffer = struct {
         ;
         return Buffer.initFromMem(alloc, welcomeMessage);
     }
+    pub fn numLines(self: *Buffer) usize {
+        return self.lines.items.len;
+    }
     pub fn getLine(self: *Buffer, line: usize) ?[]const u8 {
-        if (line > self.lines.items.items) return null;
+        if (line > self.lines.items.len) return null;
         return self.lines.items[line - 1].items;
     }
     pub fn createCursorSet(self: *Buffer) !*CursorSet {

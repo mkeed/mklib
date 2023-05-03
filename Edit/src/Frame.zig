@@ -6,7 +6,7 @@ const BufferView = @import("BufferView.zig").BufferView;
 const SplitFrame = struct {
     pub fn init(alloc: std.mem.Allocator) SplitFrame {
         return .{
-            .displays = std.ArrayList(*Display).init(alloc),
+            .displays = std.ArrayList(SplitDisplay).init(alloc),
         };
     }
     pub fn deinit(self: SplitFrame) void {
@@ -76,6 +76,7 @@ pub const Frame = struct {
     alloc: std.mem.Allocator,
     displays: std.ArrayList(*Display),
     top_level: *Display,
+    current_selection: *Display,
     pub fn init(alloc: std.mem.Allocator, buffer: BufferView) !Frame {
         var top_level = try alloc.create(Display);
         errdefer alloc.destroy(top_level);
@@ -89,6 +90,7 @@ pub const Frame = struct {
             .alloc = alloc,
             .displays = displays,
             .top_level = top_level,
+            .current_selection = top_level,
         };
     }
     pub fn deinit(self: Frame) void {
@@ -97,6 +99,34 @@ pub const Frame = struct {
             self.alloc.destroy(d);
         }
         self.displays.deinit();
+    }
+    pub const Direction = enum { Vertical, Horizontal };
+    pub fn split(self: *Frame, direction: Direction, count: usize) !void {
+        switch (self.current_selection.*) {
+            .display => |d| {
+                var split_frame = SplitFrame.init(self.alloc);
+                errdefer split_frame.deinit();
+                for (0..count) |_| {
+                    var new_display = try self.alloc.create(Display);
+                    errdefer self.alloc.destroy(new_display);
+                    new_display.* = .{ .display = try d.dupe() };
+                    try self.displays.append(new_display);
+                    try split_frame.displays.append(.{
+                        .weight = 100,
+                        .display = new_display,
+                    });
+                }
+                self.current_selection.* = switch (direction) {
+                    .Vertical => .{
+                        .vertical = split_frame,
+                    },
+                    .Horizontal => .{
+                        .horizontal = split_frame,
+                    },
+                };
+            },
+            else => unreachable,
+        }
     }
     pub const BufferLayout = struct {
         pos: Render.Pos,
@@ -112,8 +142,8 @@ pub const Frame = struct {
             .{ .name = "Buffers" },
         };
         var layouts = std.ArrayList(BufferLayout).init(arena);
-        try self.top_level.layout(windowSize, .{ .x = 0, .y = 0 }, &layouts);
-        var bufferRender = try arena.alloc(Render.WindowInfo, layouts.items);
+        try self.top_level.layout(.{ .x = windowSize.x, .y = windowSize.y - 1 }, .{ .x = 0, .y = 1 }, &layouts);
+        var bufferRender = try arena.alloc(Render.WindowInfo, layouts.items.len);
         for (layouts.items, 0..) |layout, idx| {
             bufferRender[idx] = .{
                 .pos = layout.pos,
@@ -125,7 +155,8 @@ pub const Frame = struct {
         return Render.RenderInfo{
             .title = title,
             .menus = &menus,
-            .buffer = &.{},
+            .buffer = bufferRender,
+            .screenSize = windowSize,
         };
     }
 };
