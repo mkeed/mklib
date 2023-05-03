@@ -26,13 +26,17 @@ pub const ModeLine = struct {};
 pub const RenderLine = struct {};
 pub const Window = struct {
     mode_line: ModeLine,
-    position: Pos,
-    size: Pos,
     lines: []const RenderLine,
+};
+
+pub const WindowInfo = struct {
+    pos: Pos,
+    size: Pos,
+    window: Window,
 };
 
 pub const RenderInfo = struct {
     title: []const u8,
     menus: []const Menu,
-    buffer: []const Window,
+    buffer: []const WindowInfo,
 };

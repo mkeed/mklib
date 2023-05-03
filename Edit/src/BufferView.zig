@@ -1,5 +1,6 @@
 const std = @import("std");
 const Buffer = @import("Buffer.zig");
+const Render = @import("Render.zig");
 
 pub const LinePos = union(enum) {
     Top: usize,
@@ -22,4 +23,5 @@ pub const BufferView = struct {
     pub fn deinit(self: BufferView) void {
         self.buffer.clearCursorSet(self.cursor_set);
     }
+    pub fn render(self: BufferView, size: Render.Pos, arena: std.mem.Allocator) !Render.Window {}
 };
