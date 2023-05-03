@@ -44,11 +44,29 @@ const Display = union(enum) {
                 const layoutComp = Layout.WeightedLayout(SplitFrame.SplitDisplay){
                     .items = v.displays.items,
                 };
-                _ = layoutComp;
-                //var iter = layoutComp.iter
+
+                var iter = layoutComp.iter(size.x);
+                while (iter.next()) |val| {
+                    try val.item.layout(
+                        .{ .x = val.size, .y = size.y },
+                        .{ .x = val.pos, .y = pos.y },
+                        list,
+                    );
+                }
             },
             .horizontal => |h| {
-                _ = h;
+                const layoutComp = Layout.WeightedLayout(SplitFrame.SplitDisplay){
+                    .items = h.displays.items,
+                };
+
+                var iter = layoutComp.iter(size.x);
+                while (iter.next()) |val| {
+                    try val.item.layout(
+                        .{ .x = size.x, .y = val.size },
+                        .{ .x = pos.x, .y = val.pos },
+                        list,
+                    );
+                }
             },
         }
     }
@@ -85,12 +103,17 @@ pub const Frame = struct {
         size: Display.Pos,
         buffer: *BufferView,
     };
-    // pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) Render.RenderInfo {
-    //     const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
-    //     const menus = &.{ "File", "Edit", "Options", "Buffers" };
-    //     var layouts = std.ArrayList(BufferLayout).init(arena);
-    //     self.topLevel.layout(&layouts);
-    // }
+    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) Render.RenderInfo {
+        const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
+        const menus = &.{ "File", "Edit", "Options", "Buffers" };
+        var layouts = std.ArrayList(BufferLayout).init(arena);
+        self.topLevel.layout(windowSize, .{ .x = 0, .y = 0 }, &layouts);
+        return Render.RenderInfo{
+            .title = title,
+            .menus = menus,
+            .buffer = &.{},
+        };
+    }
 };
 
 //const disp = Display{

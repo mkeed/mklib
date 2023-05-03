@@ -28,11 +28,11 @@ pub const Window = struct {
     mode_line: ModeLine,
     position: Pos,
     size: Pos,
-    lines: []RenderLine,
+    lines: []const RenderLine,
 };
 
 pub const RenderInfo = struct {
     title: []const u8,
     menus: []const Menu,
-    buffer: []Window,
+    buffer: []const Window,
 };
