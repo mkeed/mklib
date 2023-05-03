@@ -113,6 +113,15 @@ pub const Frame = struct {
         };
         var layouts = std.ArrayList(BufferLayout).init(arena);
         try self.top_level.layout(windowSize, .{ .x = 0, .y = 0 }, &layouts);
+        var bufferRender = try arena.alloc(Render.WindowInfo, layouts.items);
+        for (layouts.items, 0..) |layout, idx| {
+            bufferRender[idx] = .{
+                .pos = layout.pos,
+                .size = layout.size,
+                .window = try layout.buffer.render(layout.size, arena),
+            };
+        }
+
         return Render.RenderInfo{
             .title = title,
             .menus = &menus,

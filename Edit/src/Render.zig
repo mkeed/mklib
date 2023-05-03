@@ -1,14 +1,9 @@
 const std = @import("std");
-pub const Colour = struct {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
-};
-
-pub const Face = struct {
-    fg: Colour,
-    bg: Colour,
+const Colour = @import("Colour.zig").Colour;
+const Face = @import("Face.zig").Face;
+pub const Text = struct {
+    face: []const u8,
+    data: []const u8,
 };
 
 pub const Pos = struct {
@@ -22,8 +17,14 @@ pub const Menu = struct {
 
 pub const RenderObject = struct {};
 
-pub const ModeLine = struct {};
-pub const RenderLine = struct {};
+pub const ModeLine = struct {
+    pub const ModeInfo = struct { pos: usize, val: Text };
+    mode_info: []ModeInfo,
+};
+pub const RenderLine = struct {
+    line_num: usize,
+    data: []const Text,
+};
 pub const Window = struct {
     mode_line: ModeLine,
     lines: []const RenderLine,

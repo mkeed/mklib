@@ -62,7 +62,10 @@ pub const Buffer = struct {
         ;
         return Buffer.initFromMem(alloc, welcomeMessage);
     }
-
+    pub fn getLine(self: *Buffer, line: usize) ?[]const u8 {
+        if (line > self.lines.items.items) return null;
+        return self.lines.items[line - 1].items;
+    }
     pub fn createCursorSet(self: *Buffer) !*CursorSet {
         var set = try self.alloc.create(CursorSet);
         errdefer self.alloc.destroy(set);

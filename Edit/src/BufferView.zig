@@ -11,7 +11,7 @@ pub const BufferView = struct {
         return BufferView{
             .buffer = buffer,
             .cursor_set = cursor_set,
-            .line = .{ .Top = 0 },
+            .row = 1,
         };
     }
     pub fn deinit(self: BufferView) void {
@@ -19,25 +19,19 @@ pub const BufferView = struct {
     }
     pub fn render(self: BufferView, size: Render.Pos, arena: std.mem.Allocator) !Render.Window {
         const num_lines = std.math.min(self.buffer.numLines() - self.row, size.y);
+        var lines = try arena.alloc(Render.RenderLine, num_lines);
         for (0..num_lines) |line| {
             const row = self.buffer.getLine(line + self.row) orelse unreachable;
+            lines[line] = .{
+                .line_num = line + self.row,
+                .data = &.{
+                    .{ .face = "default", .data = row },
+                },
+            };
         }
+        return .{
+            .mode_line = .{ .mode_info = &.{.{ .pos = 0, .val = .{ .face = "default", .data = "Modeline" } }} },
+            .lines = lines,
+        };
     }
 };
-
-// 1----------
-// 2
-// 3
-// 4
-// 5
-// 6 m
-// 7
-// 8
-// 9
-// 10
-// 11
-// 12_________
-// 13
-// 14
-// 15
-// 16
