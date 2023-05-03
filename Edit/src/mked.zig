@@ -149,10 +149,14 @@ pub const mked = struct {
                 },
             }
         }
-        // var arena = std.heap.ArenaAllocator.init(self.alloc);
-        // defer arena.deinit();
-        // const aalloc = arena.allocator();
-        // const bufferWidth: isize = 100;
+        var arena = std.heap.ArenaAllocator.init(self.alloc);
+        defer arena.deinit();
+        const aalloc = arena.allocator();
+
+        const renderInfo = try self.currentFrame.render(self.terminal.output.terminalSize, aalloc);
+
+        try self.terminal.output.draw(renderInfo);
+
         // var buffers = try aalloc.alloc(Display.BufferInfo, self.buffers.items.len);
         // for (self.buffers.items, 0..) |buf, idx| {
         //     const pos = @intCast(isize, idx * bufferWidth);

@@ -45,11 +45,11 @@ const Display = union(enum) {
                     .items = v.displays.items,
                 };
 
-                var iter = layoutComp.iter(size.x);
+                var iter = layoutComp.iter(@intCast(usize, size.x));
                 while (iter.next()) |val| {
-                    try val.item.layout(
-                        .{ .x = val.size, .y = size.y },
-                        .{ .x = val.pos, .y = pos.y },
+                    try val.item.display.layout(
+                        .{ .x = @bitCast(isize, val.size), .y = size.y },
+                        .{ .x = @bitCast(isize, val.pos), .y = pos.y },
                         list,
                     );
                 }
@@ -59,11 +59,11 @@ const Display = union(enum) {
                     .items = h.displays.items,
                 };
 
-                var iter = layoutComp.iter(size.x);
+                var iter = layoutComp.iter(@intCast(usize, size.x));
                 while (iter.next()) |val| {
-                    try val.item.layout(
-                        .{ .x = size.x, .y = val.size },
-                        .{ .x = pos.x, .y = val.pos },
+                    try val.item.display.layout(
+                        .{ .x = size.x, .y = @bitCast(isize, val.size) },
+                        .{ .x = pos.x, .y = @bitCast(isize, val.pos) },
                         list,
                     );
                 }
@@ -99,18 +99,23 @@ pub const Frame = struct {
         self.displays.deinit();
     }
     pub const BufferLayout = struct {
-        pos: Display.Pos,
-        size: Display.Pos,
-        buffer: *BufferView,
+        pos: Render.Pos,
+        size: Render.Pos,
+        buffer: BufferView,
     };
-    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) Render.RenderInfo {
+    pub fn render(self: Frame, windowSize: Render.Pos, arena: std.mem.Allocator) !Render.RenderInfo {
         const title = try std.fmt.allocPrint(arena, "Frame:{}", .{123});
-        const menus = &.{ "File", "Edit", "Options", "Buffers" };
+        const menus = [_]Render.Menu{
+            .{ .name = "File" },
+            .{ .name = "Edit" },
+            .{ .name = "Options" },
+            .{ .name = "Buffers" },
+        };
         var layouts = std.ArrayList(BufferLayout).init(arena);
-        self.topLevel.layout(windowSize, .{ .x = 0, .y = 0 }, &layouts);
+        try self.top_level.layout(windowSize, .{ .x = 0, .y = 0 }, &layouts);
         return Render.RenderInfo{
             .title = title,
-            .menus = menus,
+            .menus = &menus,
             .buffer = &.{},
         };
     }
