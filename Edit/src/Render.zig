@@ -9,6 +9,12 @@ pub const Text = struct {
 pub const Pos = struct {
     x: isize,
     y: isize,
+    pub fn sub(self: Pos, other: Pos) Pos {
+        return .{
+            .x = self.x - other.x,
+            .y = self.y - other.y,
+        };
+    }
 };
 
 pub const Menu = struct {

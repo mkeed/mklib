@@ -45,7 +45,7 @@ const Display = union(enum) {
                     .items = v.displays.items,
                 };
 
-                var iter = layoutComp.iter(@intCast(usize, size.x), 1);
+                var iter = layoutComp.iter(@intCast(usize, size.x));
                 while (iter.next()) |val| {
                     try val.item.display.layout(
                         .{ .x = @bitCast(isize, val.size), .y = size.y },
@@ -59,7 +59,7 @@ const Display = union(enum) {
                     .items = h.displays.items,
                 };
 
-                var iter = layoutComp.iter(@intCast(usize, size.y), 1);
+                var iter = layoutComp.iter(@intCast(usize, size.y));
                 while (iter.next()) |val| {
                     try val.item.display.layout(
                         .{ .x = size.x, .y = @bitCast(isize, val.size) },
@@ -152,7 +152,7 @@ pub const Frame = struct {
             bufferRender[idx] = .{
                 .pos = layout.pos,
                 .size = layout.size,
-                .window = try layout.buffer.render(layout.size, arena),
+                .window = try layout.buffer.render(layout.size.sub(.{ .x = 1, .y = 1 }), arena),
             };
         }
 

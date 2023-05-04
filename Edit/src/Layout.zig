@@ -9,7 +9,6 @@ pub fn WeightedLayout(comptime T: type) type {
             totalSize: usize,
             currentIdx: usize,
             currentPos: usize,
-            padding: usize,
             items: []const T,
             pub const Result = struct {
                 pos: usize,
@@ -23,7 +22,7 @@ pub fn WeightedLayout(comptime T: type) type {
                 const pos = self.currentPos;
                 const cur = self.items[self.currentIdx];
                 const move = (self.totalSize * cur.weight) / self.totalWeight;
-                defer self.currentPos += (move + self.padding);
+                defer self.currentPos += (move);
                 return Result{
                     .pos = pos,
                     .size = move,
@@ -32,17 +31,16 @@ pub fn WeightedLayout(comptime T: type) type {
             }
         };
 
-        pub fn iter(self: Self, totalSize: usize, padding: usize) Iterator {
+        pub fn iter(self: Self, totalSize: usize) Iterator {
             var totalWeight: usize = 0;
             for (self.items) |item| {
                 totalWeight += item.weight;
             }
             return .{
-                .totalWeight = totalWeight - (self.items.len - 1) * padding,
+                .totalWeight = totalWeight,
                 .totalSize = totalSize,
                 .currentIdx = 0,
                 .currentPos = 0,
-                .padding = padding,
                 .items = self.items,
             };
         }
