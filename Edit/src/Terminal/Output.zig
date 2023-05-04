@@ -36,17 +36,29 @@ pub fn write(screenInfo: Render.RenderInfo, writer: anytype) !void {
 
     for (screenInfo.buffer) |buffer| {
         std.log.info("Buffer:[{}:{}]", .{ buffer.pos.x, buffer.pos.y });
-        for (buffer.window.lines, 0..) |line, idy| {
+        for (0..@intCast(usize, buffer.size.y)) |idy| {
+            lineCount = 0;
             try std.fmt.format(writer, Cursor.move, .{
                 buffer.pos.y + @intCast(isize, idy) + 1,
                 buffer.pos.x + 1,
             });
-            for (line.data) |data| {
-                try setColour(writer, Face.getFaceOrDefault(data.face));
-                std.log.err("data:{}", .{data.data.len});
-                try std.fmt.format(writer, "{s}", .{data.data});
+            if (idy < buffer.window.lines.len) {
+                const line = buffer.window.lines[idy];
+                for (line.data) |data| {
+                    try setColour(writer, Face.getFaceOrDefault(data.face));
+                    std.log.err("data:{}", .{data.data.len});
+                    try std.fmt.format(writer, "{s}", .{data.data});
+                    lineCount += data.data.len;
+                }
             }
+            try writer.writeByteNTimes(' ', @intCast(usize, buffer.size.x) - lineCount);
+            try std.fmt.format(writer, "|", .{});
         }
+        try std.fmt.format(writer, Cursor.move, .{
+            buffer.pos.y + buffer.size.y + 1,
+            buffer.pos.x + 1,
+        });
+        try writer.writeByteNTimes('-', @bitCast(usize, buffer.size.x));
     }
 
     // try std.fmt.format(writer, Cursor.move, .{ screenInfo.screenSize.y, screenInfo.screenSize.x - @intCast(isize, screenInfo.cmdline.len) });

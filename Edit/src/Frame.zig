@@ -45,7 +45,7 @@ const Display = union(enum) {
                     .items = v.displays.items,
                 };
 
-                var iter = layoutComp.iter(@intCast(usize, size.x));
+                var iter = layoutComp.iter(@intCast(usize, size.x), 1);
                 while (iter.next()) |val| {
                     try val.item.display.layout(
                         .{ .x = @bitCast(isize, val.size), .y = size.y },
@@ -59,7 +59,7 @@ const Display = union(enum) {
                     .items = h.displays.items,
                 };
 
-                var iter = layoutComp.iter(@intCast(usize, size.x));
+                var iter = layoutComp.iter(@intCast(usize, size.y), 1);
                 while (iter.next()) |val| {
                     try val.item.display.layout(
                         .{ .x = size.x, .y = @bitCast(isize, val.size) },
@@ -102,10 +102,12 @@ pub const Frame = struct {
     }
     pub const Direction = enum { Vertical, Horizontal };
     pub fn split(self: *Frame, direction: Direction, count: usize) !void {
+        if (count == 0) unreachable;
         switch (self.current_selection.*) {
             .display => |d| {
                 var split_frame = SplitFrame.init(self.alloc);
                 errdefer split_frame.deinit();
+                var new_current_selection: ?*Display = null;
                 for (0..count) |_| {
                     var new_display = try self.alloc.create(Display);
                     errdefer self.alloc.destroy(new_display);
@@ -115,6 +117,7 @@ pub const Frame = struct {
                         .weight = 100,
                         .display = new_display,
                     });
+                    if (new_current_selection == null) new_current_selection = new_display;
                 }
                 self.current_selection.* = switch (direction) {
                     .Vertical => .{
@@ -124,6 +127,7 @@ pub const Frame = struct {
                         .horizontal = split_frame,
                     },
                 };
+                self.current_selection = new_current_selection orelse unreachable;
             },
             else => unreachable,
         }
