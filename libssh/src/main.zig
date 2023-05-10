@@ -2,7 +2,15 @@ const std = @import("std");
 const ssh = @import("ssh.zig");
 
 pub fn main() !void {
-    ssh.log();
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .stack_trace_frames = 15 }){};
+    defer _ = gpa.deinit();
+    const alloc = gpa.allocator();
+
+    var session = try ssh.init(alloc, std.fs.cwd(), .{
+        .address = std.net.Address.parseIp("127.0.0.1", 22) catch unreachable,
+        .hostname = "127.0.0.1",
+    });
+    defer session.deinit();
 }
 
 test "simple test" {
