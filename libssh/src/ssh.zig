@@ -40,6 +40,10 @@ pub fn init(alloc: std.mem.Allocator, opts: SSHOpts) !SSH {
         if (fingerprint == 0) return error.FailedFingerPrint;
         var host: ?*ssh2.libssh2_knownhost = null;
         var check = ssh2.libssh2_knownhost_checkp(nh, opts.hostname, len, ssh2.LIBSSH2_KNOWNHOST_TYPE_PLAIN | ssh2.LIBSSH2_KNOWNHOST_KEYENC_RAW, &host);
+        //TODO: complete check
+    }
+    while(true) {
+        const rc = ssh2.libssh2_userauth_publickey_frommemory
     }
 }
 
